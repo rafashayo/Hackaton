@@ -35,19 +35,56 @@ export const pathNodes: PathNode[] = [
 ];
 
 /* ---- Lección ---- */
-export const lesson = {
-  prompt: 'RESOLVÉ PARA X',
-  equation: '2x + 6 = 14',
-  options: [
-    { label: 'x = 4', state: 'correct' as const },
-    { label: 'x = 7', state: 'wrong' as const },
-    { label: 'x = 10', state: 'idle' as const },
-    { label: 'x = 3', state: 'idle' as const },
-  ],
-  feedbackTitle: 'Te trabaste al despejar',
-  feedbackBody:
-    'Restaste el 6 de un solo lado. Lo que hacés de un lado, también va del otro: 14 − 6 = 8, y luego 8 ÷ 2 = 4. Tu próximo ejercicio se ajustó a este error.',
+export type Lesson = {
+  prompt: string;
+  equation: string;
+  options: { label: string; state: 'correct' | 'wrong' | 'idle' }[];
+  feedbackTitle: string;
+  feedbackBody: string;
 };
+
+/* La demo permite jugar los ejercicios 1 → 2 → 3 de la unidad (el 4 queda bloqueado). */
+export const lessons: Lesson[] = [
+  {
+    prompt: 'EJERCICIO 1 · RESOLVÉ PARA X',
+    equation: '2x + 6 = 14',
+    options: [
+      { label: 'x = 4', state: 'correct' },
+      { label: 'x = 7', state: 'wrong' },
+      { label: 'x = 10', state: 'idle' },
+      { label: 'x = 3', state: 'idle' },
+    ],
+    feedbackTitle: 'Te trabaste al despejar',
+    feedbackBody:
+      'Restaste el 6 de un solo lado. Lo que hacés de un lado, también va del otro: 14 − 6 = 8, y luego 8 ÷ 2 = 4.',
+  },
+  {
+    prompt: 'EJERCICIO 2 · RESOLVÉ PARA X',
+    equation: '3x − 5 = 10',
+    options: [
+      { label: 'x = 5', state: 'correct' },
+      { label: 'x = 3', state: 'wrong' },
+      { label: 'x = 15', state: 'idle' },
+      { label: 'x = 2', state: 'idle' },
+    ],
+    feedbackTitle: 'Ojo con el término independiente',
+    feedbackBody:
+      'Primero pasá el −5 sumando a la derecha: 10 + 5 = 15. Después dividí por 3: 15 ÷ 3 = 5.',
+  },
+  {
+    prompt: 'EJERCICIO 3 · RESOLVÉ PARA X',
+    equation: '4x + 8 = 20',
+    options: [
+      { label: 'x = 3', state: 'correct' },
+      { label: 'x = 7', state: 'wrong' },
+      { label: 'x = 5', state: 'idle' },
+      { label: 'x = 2', state: 'idle' },
+    ],
+    feedbackTitle: 'Revisá el orden de los pasos',
+    feedbackBody:
+      'Restá 8 de los dos lados: 20 − 8 = 12. Luego dividí por 4: 12 ÷ 4 = 3.',
+  },
+];
 
 /* ---- Panel docente ---- */
 const fn = ['Mateo', 'Sofía', 'Benjamín', 'Valentina', 'Joaquín', 'Catalina', 'Thiago', 'Martina', 'Lucas', 'Emma', 'Bautista', 'Isabella', 'Santiago', 'Julieta', 'Bruno', 'Renata', 'Lautaro', 'Mía', 'Tomás', 'Olivia', 'Gael', 'Delfina', 'Ignacio', 'Abril', 'Felipe', 'Victoria', 'Dante', 'Jazmín', 'Nicolás', 'Camila'];

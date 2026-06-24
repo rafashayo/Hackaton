@@ -6,7 +6,7 @@ import {
   tasks,
   classes,
   pathNodes,
-  lesson,
+  lessons,
   students as demoStudents,
   alerts,
   friction,
@@ -18,6 +18,7 @@ import {
   riskCount,
   avgProg,
   type Student,
+  type Lesson,
 } from './data/demo';
 
 type User = {
@@ -126,6 +127,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student>(demoStudents[0]);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+  // Progreso en la senda de Matemática (demo): cantidad de ejercicios completados (0..3).
+  const [mathProgress, setMathProgress] = useState(0);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -216,6 +219,7 @@ function App() {
     setUser(null);
     setProfile(null);
     setError(null);
+    setMathProgress(0);
     setView('welcome');
   }
 
@@ -245,10 +249,15 @@ function App() {
         <Inicio user={user} profile={profile} onNav={setView} onOpenClass={() => setView('senda')} />
       )}
       {isAlumno && view === 'senda' && (
-        <Senda onNav={setView} onStart={() => setView('leccion')} onLogout={handleLogout} />
+        <Senda progress={mathProgress} onNav={setView} onStart={() => setView('leccion')} onLogout={handleLogout} />
       )}
       {isAlumno && view === 'leccion' && (
-        <Leccion onNav={setView} onComplete={() => setView('recompensa')} onExit={() => setView('senda')} />
+        <Leccion
+          lesson={lessons[Math.min(mathProgress, lessons.length - 1)]}
+          onNav={setView}
+          onComplete={() => { setMathProgress((p) => Math.min(3, p + 1)); setView('recompensa'); }}
+          onExit={() => setView('senda')}
+        />
       )}
       {isAlumno && view === 'recompensa' && <Recompensa onContinue={() => setView('senda')} />}
       {isAlumno && view === 'profileForm' && (
@@ -559,14 +568,31 @@ function Inicio({
    02 · Senda de la clase — alumno
    ============================================================ */
 function Senda({
+  progress,
   onNav,
   onStart,
   onLogout,
 }: {
+  progress: number;
   onNav: (v: View) => void;
   onStart: () => void;
   onLogout: () => void;
 }) {
+  // Estado de cada nodo según el progreso: completados, el actual (siguiente jugable
+  // hasta el 3) y los bloqueados. El 4 nunca se desbloquea en la demo.
+  const nodeState = (n: number): 'done' | 'current' | 'locked' =>
+    n <= progress ? 'done' : n === progress + 1 && n <= 3 ? 'current' : 'locked';
+  const nodes = pathNodes.map((nd) => ({ ...nd, state: nodeState(nd.n) }));
+  // Un tramo (hacia el nodo destino) se pinta sólido cuando ese nodo ya está
+  // completado o es el actual; si no, queda punteado.
+  const segActive = (toNode: number) => {
+    const st = nodeState(toNode);
+    return st === 'done' || st === 'current';
+  };
+  const segProps = (active: boolean) =>
+    active
+      ? { stroke: '#00A6ED', strokeWidth: 9, strokeLinecap: 'round' as const }
+      : { stroke: '#dcd3bd', strokeWidth: 9, strokeLinecap: 'round' as const, strokeDasharray: '2 20' };
   return (
     <div className="screen" data-set="senda">
       <DecoLayer set="senda" />
@@ -591,13 +617,16 @@ function Senda({
 
           <div className="path-area">
             <svg width="620" height="520" viewBox="0 0 620 520" fill="none" className="path-svg">
-              <path d="M150 50 C100 92 90 110 90 156 C90 206 270 214 270 260 C270 308 96 318 96 366" stroke="#00A6ED" strokeWidth="9" strokeLinecap="round" />
-              <path d="M96 366 C96 416 286 424 286 466" stroke="#dcd3bd" strokeWidth="9" strokeLinecap="round" strokeDasharray="2 20" />
+              <path d="M150 50 C100 92 90 110 90 156 C90 206 270 214 270 260" {...segProps(segActive(2))} />
+              <path d="M270 260 C270 308 88 312 88 360" {...segProps(segActive(3))} />
+              <path d="M88 360 C88 410 286 424 286 466" {...segProps(segActive(4))} />
             </svg>
-            {pathNodes.map((node) => {
+            {nodes.map((node) => {
               if (node.state === 'current') {
+                // El nodo actual mide 92px (16 más que los de 76px); lo desplazamos
+                // -8px en x/y para que su centro coincida con el del nodo normal y el camino.
                 return (
-                  <div key={node.n} style={{ position: 'absolute', left: node.left, top: node.top, width: 92, height: 92 }}>
+                  <div key={node.n} style={{ position: 'absolute', left: node.left - 8, top: node.top - 8, width: 92, height: 92 }}>
                     <div className="node-pulse" />
                     <div className="node-tip">EMPEZAR<span className="node-tip-arrow" /></div>
                     <button className="node node-current" onClick={onStart}>{node.n}</button>
@@ -664,9 +693,11 @@ function Senda({
    03 · Lección · feedback de IA — alumno
    ============================================================ */
 function Leccion({
+  lesson,
   onComplete,
   onExit,
 }: {
+  lesson: Lesson;
   onNav: (v: View) => void;
   onComplete: () => void;
   onExit: () => void;
@@ -1922,7 +1953,11 @@ function StudentMaterialDetalle({
       {adapted && (
         <div className="panel-box" style={{ marginTop: 22 }}>
           <div className="box-title">✨ Contenido adaptado</div>
-          <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>{adapted}</p>
+          {adapted.startsWith('data:audio') ? (
+            <audio controls src={adapted} style={{ width: '100%', marginTop: 12 }} />
+          ) : (
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>{adapted}</p>
+          )}
         </div>
       )}
     </ScreenShell>

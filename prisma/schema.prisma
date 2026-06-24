@@ -8,15 +8,19 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String   @default("alumno")
-  course       String?
-  profile      Profile?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int              @id @default(autoincrement())
+  name            String
+  email           String           @unique
+  passwordHash    String
+  role            String           @default("alumno")
+  course          String?
+  profile         Profile?
+  materials       Material[]
+  studentLinks    StudentTeacher[] @relation("StudentLinks")
+  teacherLinks    StudentTeacher[] @relation("TeacherLinks")
+  adaptedContents AdaptedContent[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model Profile {
@@ -30,4 +34,41 @@ model Profile {
   intereses  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Material {
+  id        Int              @id @default(autoincrement())
+  title     String
+  content   String
+  teacher   User             @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId Int
+  subject   String?
+  level     String
+  adapted   AdaptedContent[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model StudentTeacher {
+  id        Int      @id @default(autoincrement())
+  student   User     @relation("StudentLinks", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId Int
+  teacher   User     @relation("TeacherLinks", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId Int
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, teacherId])
+}
+
+model AdaptedContent {
+  id         Int      @id @default(autoincrement())
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  materialId Int
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  Int
+  format     String
+  content    String
+  createdAt  DateTime @default(now())
 }
