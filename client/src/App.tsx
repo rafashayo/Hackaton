@@ -50,7 +50,13 @@ type View =
   | 'profileForm'
   | 'profileResult'
   | 'panel'
-  | 'detalle';
+  | 'detalle'
+  | 'alumnos'
+  | 'contenido'
+  | 'contenidoForm'
+  | 'misDocentes'
+  | 'materiales'
+  | 'materialDetalle';
 
 const questions = [
   { key: 'q1', label: 'Cuando un tema me interesa, lo investigo más aunque no entre en el examen.' },
@@ -119,6 +125,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student>(demoStudents[0]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -258,12 +265,43 @@ function App() {
           )}
         </ProfileShell>
       )}
+      {isAlumno && view === 'misDocentes' && (
+        <StudentDocentes user={user} onNav={setView} onLogout={handleLogout} setError={setError} />
+      )}
+      {isAlumno && view === 'materiales' && (
+        <StudentMateriales
+          user={user}
+          onNav={setView}
+          onLogout={handleLogout}
+          setError={setError}
+          onSelectMaterial={(id: number) => { setSelectedMaterialId(id); setView('materialDetalle'); }}
+        />
+      )}
+      {isAlumno && view === 'materialDetalle' && selectedMaterialId !== null && (
+        <StudentMaterialDetalle
+          user={user}
+          materialId={selectedMaterialId}
+          onNav={setView}
+          onBack={() => setView('materiales')}
+          onLogout={handleLogout}
+          setError={setError}
+        />
+      )}
 
       {!isAlumno && view === 'panel' && (
         <Panel user={user} onNav={setView} onOpenStudent={openStudent} onLogout={handleLogout} />
       )}
       {!isAlumno && view === 'detalle' && (
         <Detalle student={selectedStudent} onBack={() => setView('panel')} onNav={setView} onLogout={handleLogout} />
+      )}
+      {!isAlumno && view === 'alumnos' && (
+        <TeacherAlumnos user={user} onNav={setView} onLogout={handleLogout} setError={setError} />
+      )}
+      {!isAlumno && view === 'contenido' && (
+        <TeacherContenido user={user} onNav={setView} onLogout={handleLogout} setError={setError} onCreate={() => setView('contenidoForm')} />
+      )}
+      {!isAlumno && view === 'contenidoForm' && (
+        <TeacherContenidoForm user={user} onNav={setView} onLogout={handleLogout} setError={setError} onSaved={() => setView('contenido')} onBack={() => setView('contenido')} />
       )}
     </div>
   );
@@ -431,14 +469,17 @@ function Inicio({
 }) {
   void profile;
   const handleNav = (item: string) => {
-    onNav(item === 'Perfil' ? 'profileResult' : 'inicio');
+    if (item === 'Perfil') onNav('profileResult');
+    else if (item === 'Materiales') onNav('materiales');
+    else if (item === 'Docentes') onNav('misDocentes');
+    else onNav('inicio');
   };
   return (
     <div className="screen" data-set="inicio">
       <DecoLayer set="inicio" />
       <div className="screen-inner">
         <TopNav
-          items={['Inicio', 'Liga', 'Insignias', 'Perfil']}
+          items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
           active="Inicio"
           onSelect={handleNav}
           right={
@@ -532,9 +573,14 @@ function Senda({
       <div className="screen-inner senda-grid">
         <div className="senda-main">
           <TopNav
-            items={['Inicio', 'Liga', 'Insignias', 'Perfil']}
+            items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
             active="Inicio"
-            onSelect={(it) => onNav(it === 'Perfil' ? 'profileResult' : 'inicio')}
+            onSelect={(it) => {
+              if (it === 'Perfil') onNav('profileResult');
+              else if (it === 'Materiales') onNav('materiales');
+              else if (it === 'Docentes') onNav('misDocentes');
+              else onNav('inicio');
+            }}
             right={<Chip><Flame /> <span>7</span></Chip>}
             compact
           />
@@ -803,9 +849,13 @@ function Panel({
       <DecoLayer set="panel" />
       <div className="screen-inner" style={{ padding: '26px 40px 40px' }}>
         <TopNav
-          items={['Panel', 'Alumnos', 'Contenido', 'Informes']}
+          items={['Panel', 'Alumnos', 'Contenido']}
           active="Panel"
-          onSelect={(it) => (it === 'Panel' ? onNav('panel') : undefined)}
+          onSelect={(it) => {
+            if (it === 'Alumnos') onNav('alumnos');
+            else if (it === 'Contenido') onNav('contenido');
+            else onNav('panel');
+          }}
           right={
             <>
               <div className="search-pill">
@@ -902,9 +952,13 @@ function Detalle({
       <DecoLayer set="detalle" />
       <div className="screen-inner" style={{ padding: '26px 40px 40px' }}>
         <TopNav
-          items={['Panel', 'Alumnos', 'Contenido', 'Informes']}
+          items={['Panel', 'Alumnos', 'Contenido']}
           active="Alumnos"
-          onSelect={(it) => (it === 'Panel' ? onNav('panel') : undefined)}
+          onSelect={(it) => {
+            if (it === 'Panel') onNav('panel');
+            else if (it === 'Contenido') onNav('contenido');
+            else onNav('alumnos');
+          }}
           right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
         />
 
@@ -1056,11 +1110,13 @@ function ProfileShell({
     <div className="screen" data-set="inicio">
       <div className="screen-inner">
         <TopNav
-          items={['Inicio', 'Liga', 'Insignias', 'Perfil']}
+          items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
           active={active}
           onSelect={(it) => {
             if (it === 'Inicio') onNav('inicio');
             else if (it === 'Perfil') onNav('profileResult');
+            else if (it === 'Materiales') onNav('materiales');
+            else if (it === 'Docentes') onNav('misDocentes');
           }}
           right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
         />
@@ -1198,8 +1254,8 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
             <p><strong>Arquetipo:</strong> {profile.arquetipo}</p>
             <p>{profile.arquetipoDescripcion}</p>
             {profile.arquetipoSecundario && <p><strong>Segundo posible arquetipo:</strong> {profile.arquetipoSecundario}</p>}
-            <p><strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes.join(', ')}</p>
-            <p><strong>Formato preferido:</strong> {profile.formato.join(', ') || 'Sin selección'}</p>
+            <p><strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes?.join(', ') || '—'}</p>
+            <p><strong>Formato preferido:</strong> {profile.formato?.join(', ') || 'Sin selección'}</p>
             <p><strong>Forma de trabajo:</strong> {profile.trabajo}</p>
             <p><strong>Intereses:</strong> {profile.intereses || 'No definidos'}</p>
           </div>
@@ -1221,6 +1277,655 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
         </div>
       </div>
     </>
+  );
+}
+
+/* ============================================================
+   Helpers compartidos para las nuevas vistas
+   ============================================================ */
+function ScreenShell({
+  user,
+  navItems,
+  active,
+  onNav,
+  onLogout,
+  children,
+}: {
+  user: User;
+  navItems: string[];
+  active: string;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  children: React.ReactNode;
+}) {
+  void user;
+  const isDocente = user.role === 'docente';
+  function handleSelect(it: string) {
+    if (isDocente) {
+      if (it === 'Panel') onNav('panel');
+      else if (it === 'Alumnos') onNav('alumnos');
+      else if (it === 'Contenido') onNav('contenido');
+    } else {
+      if (it === 'Inicio') onNav('inicio');
+      else if (it === 'Materiales') onNav('materiales');
+      else if (it === 'Docentes') onNav('misDocentes');
+      else if (it === 'Perfil') onNav('profileResult');
+    }
+  }
+  return (
+    <div className="screen" data-set="inicio">
+      <div className="screen-inner">
+        <TopNav
+          items={navItems}
+          active={active}
+          onSelect={handleSelect}
+          right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
+        />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Docente · Alumnos (solicitudes reales)
+   ============================================================ */
+function TeacherAlumnos({
+  user,
+  onNav,
+  onLogout,
+  setError,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/teacher/students`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStudents(data.students);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cargar');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateStatus(id: number, status: 'active' | 'rejected') {
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/teacher/students/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const pending = students.filter((s) => s.status === 'pending');
+  const active = students.filter((s) => s.status === 'active');
+
+  return (
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Alumnos" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Mis alumnos</div>
+      <div className="headline-sub">Gestioná las solicitudes y seguí el vínculo con tus estudiantes.</div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && pending.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Solicitudes pendientes ({pending.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {pending.map((st) => (
+              <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {st.student.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{st.student.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{st.student.email} · {st.student.course || 'Sin curso'}</div>
+                </div>
+                <button className="btn blue" style={{ padding: '8px 16px', fontSize: 14 }} onClick={() => updateStatus(st.id, 'active')}>Aceptar</button>
+                <button className="btn ghost" style={{ padding: '8px 16px', fontSize: 14 }} onClick={() => updateStatus(st.id, 'rejected')}>Rechazar</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && active.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Alumnos activos ({active.length})</div>
+          <div className="students-grid" style={{ marginTop: 16 }}>
+            {active.map((st) => (
+              <div key={st.id} className="student-card" style={{ cursor: 'default' }}>
+                <span className="student-dot" style={{ background: '#3FB97A' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
+                    {st.student.name[0].toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="student-name">{st.student.name}</div>
+                    <div className="student-unit">{st.student.course || st.student.email}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && students.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no hay solicitudes. Compartí tu perfil con tus alumnos para que te busquen.
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Docente · Contenido (materiales)
+   ============================================================ */
+function TeacherContenido({
+  user,
+  onNav,
+  onLogout,
+  setError,
+  onCreate,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onCreate: () => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`${getApiBase()}/material`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setMaterials(data.materials || []);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Contenido" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 18, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div className="headline small">Mis materiales</div>
+          <div className="headline-sub">Contenidos que tus alumnos pueden adaptar con IA.</div>
+        </div>
+        <button className="btn" onClick={onCreate}>+ Crear material</button>
+      </div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && materials.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no creaste materiales. ¡Creá uno para que tus alumnos puedan adaptarlo!
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 24 }}>
+          {materials.map((m) => (
+            <div key={m.id} className="panel-box" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div className="box-title" style={{ fontSize: 17 }}>{m.title}</div>
+                {m.subject && <span style={{ background: 'var(--orange-soft)', color: 'var(--orange-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>{m.subject}</span>}
+              </div>
+              <span style={{ background: 'var(--blue-soft)', color: 'var(--blue-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', width: 'fit-content' }}>{m.level}</span>
+              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {m.content}
+              </p>
+              <div style={{ fontSize: 11, color: 'var(--muted-soft)', marginTop: 4 }}>{new Date(m.createdAt).toLocaleDateString()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Docente · Crear material
+   ============================================================ */
+function TeacherContenidoForm({
+  user,
+  onNav,
+  onLogout,
+  setError,
+  onSaved,
+  onBack,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onSaved: () => void;
+  onBack: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [subject, setSubject] = useState('');
+  const [level, setLevel] = useState('Secundaria');
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!title || !content) { setLocalError('Título y contenido son requeridos'); return; }
+    setSaving(true);
+    setLocalError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, content, subject, level }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setError(null);
+      onSaved();
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Contenido" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+        <button className="btn ghost" style={{ padding: '8px 14px' }} onClick={onBack}>← Volver</button>
+        <div className="headline small">Crear material</div>
+      </div>
+      <div className="headline-sub">Pegá el contenido para que tus alumnos lo adapten con IA.</div>
+
+      <div className="panel-box" style={{ marginTop: 24, maxWidth: 720 }}>
+        <label className="field"><span>Título</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: La fotosíntesis" />
+        </label>
+        <label className="field"><span>Materia (opcional)</span>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Biología" />
+        </label>
+        <label className="field"><span>Nivel</span>
+          <select value={level} onChange={(e) => setLevel(e.target.value)}>
+            <option>Primaria</option>
+            <option>Secundaria</option>
+            <option>Universitario</option>
+          </select>
+        </label>
+        <label className="field"><span>Contenido</span>
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={10} placeholder="Pegá aquí el texto del material…" />
+        </label>
+        {localError && <div className="banner error" style={{ marginBottom: 14 }}>{localError}</div>}
+        <div className="btn-row">
+          <button className="btn" onClick={handleSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar material'}</button>
+        </div>
+      </div>
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Mis docentes
+   ============================================================ */
+function StudentDocentes({
+  user,
+  onNav,
+  onLogout,
+  setError,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [myTeachers, setMyTeachers] = useState<any[]>([]);
+  const [available, setAvailable] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [requesting, setRequesting] = useState(false);
+
+  async function load() {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      const [myRes, availRes] = await Promise.all([
+        fetch(`${getApiBase()}/student/teachers`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${getApiBase()}/student/available-teachers`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const [myData, availData] = await Promise.all([myRes.json(), availRes.json()]);
+      setMyTeachers(myData.teachers || []);
+      setAvailable(availData.teachers || []);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function requestTeacher(teacherId: number) {
+    setRequesting(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/student/request-teacher`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ teacherId }),
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const myTeacherIds = new Set(myTeachers.map((t) => t.teacher.id));
+
+  return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Docentes" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Mis docentes</div>
+      <div className="headline-sub">Los docentes que te están guiando en tu aprendizaje.</div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && myTeachers.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Vinculados</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {myTeachers.map((st) => (
+              <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {st.teacher.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{st.teacher.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{st.teacher.email}</div>
+                </div>
+                <span style={{
+                  fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '4px 12px',
+                  background: st.status === 'active' ? 'var(--green-soft)' : 'var(--orange-soft)',
+                  color: st.status === 'active' ? '#1f7a4d' : 'var(--orange-shadow)',
+                }}>
+                  {st.status === 'active' ? '✓ Activo' : '⏳ Pendiente'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && available.filter((t) => !myTeacherIds.has(t.id)).length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Docentes disponibles</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {available.filter((t) => !myTeacherIds.has(t.id)).map((t) => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {t.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.email}</div>
+                </div>
+                <button className="btn blue" style={{ padding: '8px 16px', fontSize: 14 }} disabled={requesting} onClick={() => requestTeacher(t.id)}>
+                  Solicitar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && myTeachers.length === 0 && available.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          No hay docentes disponibles en este momento.
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Materiales
+   ============================================================ */
+function StudentMateriales({
+  user,
+  onNav,
+  onLogout,
+  setError,
+  onSelectMaterial,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onSelectMaterial: (id: number) => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`${getApiBase()}/material`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setMaterials(data.materials || []);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Materiales</div>
+      <div className="headline-sub">Adaptá cada contenido a tu estilo de aprendizaje con IA.</div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && materials.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no hay materiales disponibles. Pedile a tu docente que suba contenido.
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 24 }}>
+          {materials.map((m) => (
+            <div key={m.id} className="panel-box" style={{ display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }} onClick={() => onSelectMaterial(m.id)}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div className="box-title" style={{ fontSize: 17 }}>{m.title}</div>
+                {m.subject && <span style={{ background: 'var(--orange-soft)', color: 'var(--orange-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>{m.subject}</span>}
+              </div>
+              <span style={{ background: 'var(--blue-soft)', color: 'var(--blue-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', width: 'fit-content' }}>{m.level}</span>
+              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {m.content}
+              </p>
+              <button className="btn blue" style={{ marginTop: 8 }} onClick={(e) => { e.stopPropagation(); onSelectMaterial(m.id); }}>
+                Ver y adaptar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Detalle de material + adaptación IA
+   ============================================================ */
+const ADAPT_FORMATS = [
+  { id: 'resumen', label: '📋 Resumen', desc: 'Puntos clave sintetizados' },
+  { id: 'explicacion', label: '📖 Explicación', desc: 'Lenguaje sencillo' },
+  { id: 'ejercicios', label: '✏️ Ejercicios', desc: 'Preguntas y problemas' },
+  { id: 'ejemplos', label: '🌍 Ejemplos', desc: 'Situaciones reales' },
+  { id: 'esquema', label: '🧠 Esquema', desc: 'Mapa conceptual' },
+  { id: 'audio', label: '🎧 Audio', desc: 'Guion narrado' },
+] as const;
+
+function StudentMaterialDetalle({
+  user,
+  materialId,
+  onNav,
+  onBack,
+  onLogout,
+  setError,
+}: {
+  user: User;
+  materialId: number;
+  onNav: (v: View) => void;
+  onBack: () => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [material, setMaterial] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedFormat, setSelectedFormat] = useState<string>('resumen');
+  const [adapted, setAdapted] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`${getApiBase()}/material/${materialId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setMaterial(data.material);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [materialId]);
+
+  async function generate() {
+    setGenerating(true);
+    setLocalError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${materialId}/adapt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ format: selectedFormat }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAdapted(data.content);
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Error al generar');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  if (loading) return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <p style={{ marginTop: 40, color: 'var(--muted)' }}>Cargando…</p>
+    </ScreenShell>
+  );
+
+  if (!material) return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <p style={{ marginTop: 40, color: 'var(--red)' }}>Material no encontrado.</p>
+    </ScreenShell>
+  );
+
+  return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+        <button className="btn ghost" style={{ padding: '8px 14px' }} onClick={onBack}>← Volver</button>
+        <div>
+          <div className="headline small">{material.title}</div>
+          <div className="headline-sub">{material.subject} · {material.level}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginTop: 24, flexWrap: 'wrap' }}>
+        <div className="panel-box">
+          <div className="box-title">Contenido original</div>
+          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginTop: 12, maxHeight: 320, overflow: 'auto' }}>
+            {material.content}
+          </p>
+        </div>
+
+        <div className="panel-box">
+          <div className="box-title">Seleccioná un formato</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
+            {ADAPT_FORMATS.map((fmt) => (
+              <button
+                key={fmt.id}
+                onClick={() => { setSelectedFormat(fmt.id); setAdapted(null); }}
+                style={{
+                  border: `2px solid ${selectedFormat === fmt.id ? 'var(--blue)' : 'var(--line)'}`,
+                  background: selectedFormat === fmt.id ? 'var(--blue-soft)' : '#fff',
+                  borderRadius: 16, padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{fmt.desc}</div>
+              </button>
+            ))}
+          </div>
+          <button className="btn block" style={{ marginTop: 18 }} onClick={generate} disabled={generating}>
+            {generating ? '⏳ Generando…' : '✨ Generar contenido adaptado'}
+          </button>
+          {localError && <div className="banner error" style={{ marginTop: 12 }}>{localError}</div>}
+        </div>
+      </div>
+
+      {adapted && (
+        <div className="panel-box" style={{ marginTop: 22 }}>
+          <div className="box-title">✨ Contenido adaptado</div>
+          <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>{adapted}</p>
+        </div>
+      )}
+    </ScreenShell>
   );
 }
 
