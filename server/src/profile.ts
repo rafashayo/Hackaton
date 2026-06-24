@@ -98,6 +98,18 @@ function getDimensionLabel(value: number) {
   return 'medio';
 }
 
+// Significado legible de cada dimensión (las claves cortas se mantienen en los datos).
+const DIM_LABELS: Record<string, string> = {
+  MI: 'Inteligencias Múltiples',
+  UTIL: 'Utilidad / Orientación práctica',
+  MC: 'Metacognición',
+  AR: 'Análisis / Reflexión',
+  EST: 'Estrategia',
+  COL: 'Colaboración',
+  ANS: 'Ansiedad / Motivación',
+  AE: 'Autonomía / Autoeficacia',
+};
+
 type ArchetypeDerivation = {
   arquetipo: string;
   arquetipoDescripcion: string;
@@ -130,7 +142,7 @@ function deriveArchetype(dims: ProfileDimensions): ArchetypeDerivation {
     .map(([key, value]) => ({ key, distance: Math.abs(value - 3), value }))
     .sort((a, b) => b.distance - a.distance)
     .slice(0, 3)
-    .map((item) => `${item.key} (${getDimensionLabel(item.value)})`);
+    .map((item) => `${DIM_LABELS[item.key] ?? item.key} (${getDimensionLabel(item.value)})`);
 
   const result: ArchetypeDerivation = {
     arquetipo: arquetipo.name,

@@ -76,6 +76,18 @@ const questions = [
 const formats = ['Video', 'Texto/apunte', 'Ejercicios', 'Ejemplos reales', 'Esquemas', 'Audio'];
 const workModes = ['Solo/a', 'En grupo', 'Depende'];
 
+// Significado legible de cada dimensión del perfil (las claves cortas viven en los datos).
+const DIM_LABELS: Record<string, string> = {
+  MI: 'Inteligencias Múltiples',
+  UTIL: 'Utilidad / Orientación práctica',
+  MC: 'Metacognición',
+  AR: 'Análisis / Reflexión',
+  EST: 'Estrategia',
+  COL: 'Colaboración',
+  ANS: 'Ansiedad / Motivación',
+  AE: 'Autonomía / Autoeficacia',
+};
+
 function getApiBase() {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 }
@@ -1299,7 +1311,7 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
           <div className="bars mt-16">
             {Object.entries(profile.dims).map(([key, value]) => (
               <div className="bar-row" key={key}>
-                <span>{key}</span>
+                <span title={key}>{DIM_LABELS[key] ?? key}</span>
                 <div className="bar-track"><div className="bar-fill" style={{ width: `${((value - 1) / 4) * 100}%` }} /></div>
                 <span>{value.toFixed(1)}</span>
               </div>

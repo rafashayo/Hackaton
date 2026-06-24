@@ -1031,8 +1031,8 @@ textarea { resize: vertical; }
 .summary-box p:last-child { margin-bottom: 0; }
 .summary-box strong { color: var(--ink-navy); }
 .bars { display: grid; gap: 12px; }
-.bar-row { display: grid; grid-template-columns: 120px 1fr 48px; align-items: center; gap: 12px; }
-.bar-row > span:first-child { font-weight: 700; font-size: 13px; color: var(--ink-navy); }
+.bar-row { display: grid; grid-template-columns: 150px 1fr 44px; align-items: center; gap: 12px; }
+.bar-row > span:first-child { font-weight: 700; font-size: 12px; line-height: 1.25; color: var(--ink-navy); }
 .bar-row > span:last-child { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 13px; color: var(--ink-navy); text-align: right; }
 .bar-track { height: 12px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), #5ec8f6); }
@@ -1078,5 +1078,5 @@ textarea { resize: vertical; }
   .detail-right { width: 100%; }
   .students-grid { grid-template-columns: repeat(2, 1fr); }
   .reward-stats { gap: 10px; }
-  .bar-row { grid-template-columns: 100px 1fr 40px; }
+  .bar-row { grid-template-columns: 130px 1fr 40px; }
 }
