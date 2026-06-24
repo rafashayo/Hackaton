@@ -301,9 +301,112 @@ h3,
   margin: 2px 0 0;
 }
 
-.grid {
+.card-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 18px;
+}
+
+.material-card {
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.material-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(46, 71, 86, 0.08);
+}
+
+.material-card.selected {
+  border-color: var(--blue);
+  background: rgba(0, 166, 237, 0.06);
+}
+
+.material-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.material-card-title {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.material-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.material-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--muted);
+}
+
+.material-badge.level {
+  background: var(--blue-soft);
+  color: var(--blue-shadow);
+}
+
+.material-badge.subject {
+  background: var(--orange-soft);
+  color: var(--orange-shadow);
+}
+
+.material-preview {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #5a5346;
+  background: #f9f9f9;
+  padding: 16px;
+  border-radius: 18px;
+  min-height: 88px;
+  overflow: hidden;
+}
+
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.format-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 16px;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.format-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  transform: translateY(-1px);
+}
+
+.format-btn.selected {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.material-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.05fr);
+  gap: 22px;
+}
+
+.detail-card .material-preview {
+  min-height: 200px;
+  max-height: 360px;
 }
 
 .kpis {
@@ -648,6 +751,11 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
+  background:
+    radial-gradient(ellipse at 70% -10%, rgba(0, 166, 237, 0.28) 0%, transparent 55%),
+    radial-gradient(ellipse at -10% 100%, rgba(255, 94, 0, 0.22) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(63, 185, 122, 0.08) 0%, transparent 70%),
+    var(--navy);
 }
 
 .auth-card {
@@ -656,7 +764,10 @@ textarea {
   background: #fff;
   border-radius: 28px;
   padding: 34px 32px;
-  box-shadow: 0 24px 60px -24px rgba(40, 30, 10, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 32px 80px -20px rgba(0, 0, 0, 0.55),
+    0 8px 24px -8px rgba(0, 0, 0, 0.3);
 }
 
 .auth-brand {

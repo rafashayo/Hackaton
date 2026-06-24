@@ -3,6 +3,9 @@ import cors from 'cors';
 import 'dotenv/config';
 import authRouter from './auth.ts';
 import profileRouter from './profile.ts';
+import teacherRouter from './teacher.ts';
+import studentRouter from './student.ts';
+import materialRouter from './material.ts';
 import { prisma } from './db.ts';
 
 const app = express();
@@ -22,6 +25,9 @@ app.use(express.json());
 
 app.use('/auth', authRouter);
 app.use('/profile', profileRouter);
+app.use('/teacher', teacherRouter);
+app.use('/student', studentRouter);
+app.use('/material', materialRouter);
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Backend de Aprendizaje Adaptativo' });
@@ -34,5 +40,6 @@ app.use((err, req, res, next) => {
 
 app.listen(port, async () => {
   console.log(`Server escuchando en http://localhost:${port}`);
+  console.log(`JWT_SECRET configured: ${process.env.JWT_SECRET ? 'yes (from .env)' : 'no (using default)'}`);
   await prisma.$connect();
 });

@@ -4,10 +4,24 @@ import jwt from 'jsonwebtoken';
 import { prisma } from './db.ts';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[Auth] JWT_SECRET loaded:', JWT_SECRET ? 'yes' : 'no');
+}
 
 function createToken(userId: number) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '8h' });
+  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '8h' });
+  const decoded = jwt.decode(token) as any;
+  console.log('[Auth] Token created:', {
+    userId,
+    secretLength: JWT_SECRET.length,
+    secretPreview: JWT_SECRET.substring(0, 10) + '...',
+    exp: decoded?.exp,
+    iat: decoded?.iat,
+    now: Math.floor(Date.now() / 1000),
+  });
+  return token;
 }
 
 export function requireAuth(req, res, next) {
@@ -18,10 +32,18 @@ export function requireAuth(req, res, next) {
 
   const token = authHeader.replace('Bearer ', '');
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.decode(token) as any;
+    console.log('[Auth] Token verification attempt:', {
+      secretLength: JWT_SECRET.length,
+      tokenExpiry: decoded?.exp,
+      now: Math.floor(Date.now() / 1000),
+      secondsUntilExpire: decoded?.exp ? decoded.exp - Math.floor(Date.now() / 1000) : 'N/A',
+    });
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
     req.userId = payload.userId;
     next();
   } catch (error) {
+    console.error('[Auth] Token verification failed:', error instanceof Error ? error.message : String(error));
     return res.status(401).json({ error: 'Token inválido' });
   }
 }

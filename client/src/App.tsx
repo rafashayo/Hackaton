@@ -41,6 +41,23 @@ function getApiBase() {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 }
 
+async function api(path: string, options: RequestInit = {}) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((options.headers as Record<string, string>) || {}),
+  };
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch(`${getApiBase()}${path}`, { ...options, headers });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || 'Error de servidor');
+  }
+  return data;
+}
+
 /* ---------- iconos en línea (estilo Discere) ---------- */
 const Flame = ({ s = 20 }: { s?: number }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="#FF5E00">
@@ -96,49 +113,44 @@ function initials(name: string) {
 }
 
 function App() {
-  const [view, setView] = useState<'home' | 'login' | 'register' | 'profileForm' | 'profileResult'>('home');
-  const [user, setUser] = useState<User | null>(null);
+  const [view, setView] = useState<'home' | 'login' | 'register' | 'profileForm' | 'profileResult' | 'teacherHome' | 'teacherStudents' | 'studentTeachers' | 'studentRequestTeacher' | 'teacherMaterials' | 'teacherMaterialForm' | 'studentMaterials' | 'studentMaterialDetail'>('home');
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  });
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useMemo(() => localStorage.getItem('authToken'), []);
-
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && storedUser) {
-      setUser(JSON.parse(storedUser));
+    if (storedToken) {
       fetchProfile(storedToken);
     }
   }, []);
 
-  async function api(path: string, options: RequestInit = {}) {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...((options.headers as Record<string, string>) || {}),
-    };
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    const response = await fetch(`${getApiBase()}${path}`, { ...options, headers });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data?.error || 'Error de servidor');
-    }
-    return data;
-  }
-
   async function fetchProfile(authToken: string) {
     setLoading(true);
     try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      const user = JSON.parse(storedUser);
+      
+      if (user.role === 'docente') {
+        setView('teacherHome');
+        return;
+      }
+      
       const data = await api('/profile/me');
       setProfile(data.profile);
       setView(data.profile ? 'profileResult' : 'profileForm');
     } catch (err) {
       console.error(err);
-      setError('No se pudo cargar el perfil');
+      if (user?.role === 'docente') {
+        setView('teacherHome');
+      } else {
+        setError('No se pudo cargar el perfil');
+      }
     } finally {
       setLoading(false);
     }
@@ -180,7 +192,7 @@ function App() {
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
-      setView(data.user.role === 'alumno' ? 'profileForm' : 'home');
+      setView(data.user.role === 'alumno' ? 'profileForm' : 'teacherHome');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -224,7 +236,7 @@ function App() {
         <nav className="nav">
           {isAlumno ? (
             <>
-              <button className={`nav-item ${view !== 'profileForm' && view !== 'profileResult' ? 'active' : ''}`} onClick={() => setView('home')}>
+              <button className={`nav-item ${view !== 'profileForm' && view !== 'profileResult' && view !== 'studentTeachers' && view !== 'studentRequestTeacher' && view !== 'studentMaterials' && view !== 'studentMaterialDetail' ? 'active' : ''}`} onClick={() => setView('home')}>
                 <HomeI /> <span>Inicio</span>
               </button>
               <button
@@ -233,11 +245,31 @@ function App() {
               >
                 <UserI /> <span>Mi perfil</span>
               </button>
+              <button
+                className={`nav-item ${view === 'studentTeachers' || view === 'studentRequestTeacher' ? 'active' : ''}`}
+                onClick={() => setView('studentTeachers')}
+              >
+                <GridI /> <span>Mis docentes</span>
+              </button>
+              <button
+                className={`nav-item ${view === 'studentMaterials' || view === 'studentMaterialDetail' ? 'active' : ''}`}
+                onClick={() => setView('studentMaterials')}
+              >
+                <GridI /> <span>📚 Materiales</span>
+              </button>
             </>
           ) : (
-            <button className="nav-item active">
-              <GridI /> <span>Panel</span>
-            </button>
+            <>
+              <button className={`nav-item ${view === 'teacherHome' ? 'active' : ''}`} onClick={() => setView('teacherHome')}>
+                <HomeI /> <span>Inicio</span>
+              </button>
+              <button className={`nav-item ${view === 'teacherStudents' ? 'active' : ''}`} onClick={() => setView('teacherStudents')}>
+                <PeopleI /> <span>Mis alumnos</span>
+              </button>
+              <button className={`nav-item ${view === 'teacherMaterials' || view === 'teacherMaterialForm' ? 'active' : ''}`} onClick={() => setView('teacherMaterials')}>
+                <GridI /> <span>📚 Mis materiales</span>
+              </button>
+            </>
           )}
         </nav>
         <div className="sidebar-spacer" />
@@ -282,7 +314,37 @@ function App() {
           <ProfileResult profile={profile} onEdit={() => setView('profileForm')} />
         )}
 
-        {!isAlumno && <TeacherPanel user={user} />}
+        {isAlumno && view === 'studentTeachers' && (
+          <StudentTeachers user={user} onRequestTeacher={() => setView('studentRequestTeacher')} error={error} setError={setError} />
+        )}
+
+        {isAlumno && view === 'studentRequestTeacher' && (
+          <StudentRequestTeacher user={user} onBack={() => setView('studentTeachers')} error={error} setError={setError} />
+        )}
+
+        {isAlumno && view === 'studentMaterials' && (
+          <StudentMaterials user={user} onSelectMaterial={() => setView('studentMaterialDetail')} error={error} setError={setError} />
+        )}
+
+        {isAlumno && view === 'studentMaterialDetail' && (
+          <StudentMaterialDetail user={user} onBack={() => setView('studentMaterials')} error={error} setError={setError} />
+        )}
+
+        {!isAlumno && view === 'teacherHome' && (
+          <TeacherPanel user={user} onGoToStudents={() => setView('teacherStudents')} />
+        )}
+
+        {!isAlumno && view === 'teacherStudents' && (
+          <TeacherStudents user={user} error={error} setError={setError} />
+        )}
+
+        {!isAlumno && view === 'teacherMaterials' && (
+          <TeacherMaterials user={user} onCreateMaterial={() => setView('teacherMaterialForm')} error={error} setError={setError} />
+        )}
+
+        {!isAlumno && view === 'teacherMaterialForm' && (
+          <TeacherMaterialForm user={user} onBack={() => setView('teacherMaterials')} onSaved={() => setView('teacherMaterials')} error={error} setError={setError} />
+        )}
       </main>
     </div>
   );
@@ -664,10 +726,10 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
               </p>
             )}
             <p>
-              <strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes.join(', ')}
+              <strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes?.join(', ') || '—'}
             </p>
             <p>
-              <strong>Formato preferido:</strong> {profile.formato.join(', ') || 'Sin selección'}
+              <strong>Formato preferido:</strong> {profile.formato?.join(', ') || 'Sin selección'}
             </p>
             <p>
               <strong>Forma de trabajo:</strong> {profile.trabajo}
@@ -706,7 +768,7 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
 /* ============================================================
    Panel docente
    ============================================================ */
-function TeacherPanel({ user }: { user: User }) {
+function TeacherPanel({ user, onGoToStudents }: { user: User; onGoToStudents?: () => void }) {
   return (
     <>
       <div className="page-head">
@@ -767,7 +829,712 @@ function TeacherPanel({ user }: { user: User }) {
           Compartí el curso con tus alumnos para que completen su perfil. Cuando lo hagan, vas a ver el semáforo de
           estado y las alertas de la IA en esta pantalla.
         </p>
+        {onGoToStudents && (
+          <div className="btn-row">
+            <button className="btn" onClick={onGoToStudents}>
+              Ver solicitudes de alumnos
+            </button>
+          </div>
+        )}
       </div>
+    </>
+  );
+}
+
+/* ============================================================
+   Mis docentes (alumno)
+   ============================================================ */
+function StudentTeachers({
+  user,
+  onRequestTeacher,
+  error,
+  setError,
+}: {
+  user: User;
+  onRequestTeacher: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
+  async function loadTeachers() {
+    try {
+      setLoading(true);
+      const data = await api('/student/teachers');
+      setTeachers(data.teachers);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar docentes');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Mis docentes</h1>
+          <div className="sub">Los docentes que te están guiando en tu aprendizaje.</div>
+        </div>
+        <button className="btn" onClick={onRequestTeacher}>
+          + Agregar docente
+        </button>
+      </div>
+
+      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
+
+      {!loading && teachers.length === 0 && (
+        <div className="card mt-22">
+          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
+            Todavía no tenés docentes asignados. ¡Solicita a uno para empezar!
+          </p>
+        </div>
+      )}
+
+      {!loading && teachers.length > 0 && (
+        <div className="card-grid mt-22">
+          {teachers.map((st) => (
+            <div key={st.id} className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div className="avatar" style={{ width: 40, height: 40 }}>
+                  {(st.teacher.name[0] || '?').toUpperCase()}
+                </div>
+                <div>
+                  <div className="name">{st.teacher.name}</div>
+                  <div className="role" style={{ fontSize: 12, color: '#999' }}>
+                    {st.status === 'pending' ? '⏳ Pendiente' : st.status === 'active' ? '✓ Activo' : 'Completado'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
+                {st.teacher.email}
+              </div>
+              <div style={{ fontSize: 12, color: '#999' }}>
+                Conectado desde {new Date(st.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Solicitar docente (alumno)
+   ============================================================ */
+function StudentRequestTeacher({
+  user,
+  onBack,
+  error,
+  setError,
+}: {
+  user: User;
+  onBack: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [available, setAvailable] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
+  async function loadTeachers() {
+    try {
+      setLoading(true);
+      const data = await api('/student/available-teachers');
+      setAvailable(data.teachers);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar docentes');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function requestTeacher(teacherId: number) {
+    try {
+      setLoading(true);
+      await api('/student/request-teacher', {
+        method: 'POST',
+        body: JSON.stringify({ teacherId }),
+      });
+      setError(null);
+      loadTeachers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al solicitar');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Agregar docente</h1>
+          <div className="sub">Selecciona un docente para solicitar que te guíe.</div>
+        </div>
+        <button className="btn ghost" onClick={onBack}>
+          ← Atrás
+        </button>
+      </div>
+
+      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando docentes disponibles...</div>}
+
+      {!loading && available.length === 0 && (
+        <div className="card mt-22">
+          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
+            No hay docentes disponibles en este momento.
+          </p>
+        </div>
+      )}
+
+      {!loading && available.length > 0 && (
+        <div className="card-grid mt-22">
+          {available.map((teacher) => (
+            <div key={teacher.id} className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div className="avatar" style={{ width: 40, height: 40 }}>
+                  {(teacher.name[0] || '?').toUpperCase()}
+                </div>
+                <div>
+                  <div className="name">{teacher.name}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
+                {teacher.email}
+              </div>
+              {teacher.course && (
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 12 }}>
+                  Curso: {teacher.course}
+                </div>
+              )}
+              <button
+                className="btn"
+                style={{ width: '100%', marginTop: 12 }}
+                onClick={() => requestTeacher(teacher.id)}
+              >
+                Solicitar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Mis alumnos (docente)
+   ============================================================ */
+function TeacherStudents({
+  user,
+  error,
+  setError,
+}: {
+  user: User;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  async function loadStudents() {
+    try {
+      setLoading(true);
+      const data = await api('/teacher/students');
+      setStudents(data.students);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar alumnos');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateStatus(id: number, status: 'active' | 'rejected' | 'completed') {
+    try {
+      await api(`/teacher/students/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      loadStudents();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al actualizar');
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Mis alumnos</h1>
+          <div className="sub">Gestiona las solicitudes de tus estudiantes.</div>
+        </div>
+      </div>
+
+      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando alumnos...</div>}
+
+      {!loading && students.length === 0 && (
+        <div className="card mt-22">
+          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
+            No hay solicitudes de alumnos aún. Comparte tu código con ellos para que se vinculen.
+          </p>
+        </div>
+      )}
+
+      {!loading && students.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 22 }}>
+          {students.map((st) => (
+            <div key={st.id} className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div className="avatar" style={{ width: 40, height: 40 }}>
+                  {(st.student.name[0] || '?').toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="name">{st.student.name}</div>
+                  <div className="role" style={{ fontSize: 12, color: '#999' }}>
+                    {st.student.course ? `${st.student.course}` : 'Sin curso'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
+                {st.student.email}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                {st.status === 'pending' && (
+                  <>
+                    <button
+                      className="btn"
+                      style={{ flex: 1, fontSize: 12, padding: 8 }}
+                      onClick={() => updateStatus(st.id, 'active')}
+                    >
+                      ✓ Aceptar
+                    </button>
+                    <button
+                      className="btn ghost"
+                      style={{ flex: 1, fontSize: 12, padding: 8 }}
+                      onClick={() => updateStatus(st.id, 'rejected')}
+                    >
+                      ✗ Rechazar
+                    </button>
+                  </>
+                )}
+                {st.status !== 'pending' && (
+                  <div style={{ fontSize: 12, color: '#999', padding: '8px 12px', width: '100%', textAlign: 'center' }}>
+                    {st.status === 'active' ? '✓ Activo' : '✗ Rechazado'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Mis materiales (docente)
+   ============================================================ */
+function TeacherMaterials({
+  user,
+  onCreateMaterial,
+  error,
+  setError,
+}: {
+  user: User;
+  onCreateMaterial: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadMaterials();
+  }, []);
+
+  async function loadMaterials() {
+    try {
+      setLoading(true);
+      const data = await api('/material');
+      setMaterials(data.materials || []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar materiales');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Mis materiales</h1>
+          <div className="sub">Gestiona tus contenidos didácticos para los alumnos.</div>
+        </div>
+        <button className="btn" onClick={onCreateMaterial}>
+          + Crear material
+        </button>
+      </div>
+
+      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
+
+      {!loading && materials.length === 0 && (
+        <div className="card mt-22">
+          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
+            Todavía no creaste materiales. ¡Crea uno para empezar!
+          </p>
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div className="card-grid mt-22">
+          {materials.map((material) => (
+            <div key={material.id} className="card material-card">
+              <div className="material-card-header">
+                <h3 className="material-card-title">{material.title}</h3>
+                <span className="material-badge subject">{material.subject || 'Sin materia'}</span>
+              </div>
+              <div className="material-badges">
+                <span className="material-badge level">{material.level}</span>
+                <span className="material-badge">{new Date(material.createdAt).toLocaleDateString()}</span>
+              </div>
+              <p className="material-preview">{material.content.substring(0, 180)}...</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Crear material (docente)
+   ============================================================ */
+function TeacherMaterialForm({
+  user,
+  onBack,
+  onSaved,
+  error,
+  setError,
+}: {
+  user: User;
+  onBack: () => void;
+  onSaved: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [subject, setSubject] = useState('');
+  const [level, setLevel] = useState('Secundaria');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit() {
+    if (!title || !content) {
+      setError('Título y contenido son requeridos');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api('/material', {
+        method: 'POST',
+        body: JSON.stringify({ title, content, subject, level }),
+      });
+      setError(null);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Crear material</h1>
+          <div className="sub">Ingresa el contenido que los alumnos adaptarán según su estilo de aprendizaje.</div>
+        </div>
+        <button className="btn ghost" onClick={onBack}>
+          ← Atrás
+        </button>
+      </div>
+
+      <div className="card mt-22" style={{ maxWidth: 720 }}>
+        <label className="field">
+          <span>Título</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} type="text" placeholder="Ej: La fotosíntesis" />
+        </label>
+
+        <label className="field">
+          <span>Materia (opcional)</span>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} type="text" placeholder="Ej: Biología" />
+        </label>
+
+        <label className="field">
+          <span>Nivel</span>
+          <select value={level} onChange={(e) => setLevel(e.target.value)}>
+            <option>Primaria</option>
+            <option>Secundaria</option>
+            <option>Universitario</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Contenido</span>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={10}
+            placeholder="Pegá aquí el texto de tu material (puede ser de un PDF, libro, apunte, etc.)"
+          />
+        </label>
+
+        {error && <div className="banner error" style={{ marginBottom: 14 }}>{error}</div>}
+
+        <div className="btn-row">
+          <button className="btn" onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar material'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
+   Materiales disponibles (alumno)
+   ============================================================ */
+function StudentMaterials({
+  user,
+  onSelectMaterial,
+  error,
+  setError,
+}: {
+  user: User;
+  onSelectMaterial: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    loadMaterials();
+  }, []);
+
+  async function loadMaterials() {
+    try {
+      setLoading(true);
+      const data = await api('/material');
+      setMaterials(data.materials || []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar materiales');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>Materiales de clase</h1>
+          <div className="sub">Adaptá el contenido según tu estilo de aprendizaje.</div>
+        </div>
+      </div>
+
+      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
+
+      {!loading && materials.length === 0 && (
+        <div className="card mt-22">
+          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
+            Todavía no hay materiales disponibles. Contactá a tu docente.
+          </p>
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div className="card-grid mt-22">
+          {materials.map((material) => (
+            <div
+              key={material.id}
+              className={`card material-card ${selectedId === material.id ? 'selected' : ''}`}
+              onClick={() => setSelectedId(material.id)}
+            >
+              <div className="material-card-header">
+                <h3 className="material-card-title">{material.title}</h3>
+                <div className="material-badges">
+                  <span className="material-badge subject">{material.subject || 'Sin materia'}</span>
+                  <span className="material-badge level">{material.level}</span>
+                </div>
+              </div>
+              <p className="material-preview">{material.content.substring(0, 180)}...</p>
+              <div className="btn-row" style={{ marginTop: 0 }}>
+                <button
+                  className="btn"
+                  style={{ flex: 1 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    localStorage.setItem('selectedMaterialId', String(material.id));
+                    onSelectMaterial();
+                  }}
+                >
+                  Ver y adaptar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Detalle de material y generación adaptada (alumno)
+   ============================================================ */
+function StudentMaterialDetail({
+  user,
+  onBack,
+  error,
+  setError,
+}: {
+  user: User;
+  onBack: () => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const materialId = parseInt(localStorage.getItem('selectedMaterialId') || '0');
+  const [material, setMaterial] = useState<any | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<'resumen' | 'explicacion' | 'ejercicios' | 'ejemplos' | 'esquema' | 'audio'>('resumen');
+  const [adaptedContent, setAdaptedContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  const formats = [
+    { id: 'resumen', label: '📋 Resumen', desc: 'Puntos clave sintetizados' },
+    { id: 'explicacion', label: '📖 Explicación', desc: 'Explicado de forma sencilla' },
+    { id: 'ejercicios', label: '✏️ Ejercicios', desc: 'Preguntas y problemas' },
+    { id: 'ejemplos', label: '🌍 Ejemplos', desc: 'Situaciones de la vida real' },
+    { id: 'esquema', label: '🧠 Esquema', desc: 'Mapa conceptual' },
+    { id: 'audio', label: '🎧 Audio', desc: 'Para escuchar' },
+  ];
+
+  useEffect(() => {
+    loadMaterial();
+  }, []);
+
+  async function loadMaterial() {
+    try {
+      setLoading(true);
+      const data = await api(`/material/${materialId}`);
+      setMaterial(data.material);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar material');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateAdapted() {
+    if (!material) return;
+    setGenerating(true);
+    try {
+      const data = await api(`/material/${materialId}/adapt`, {
+        method: 'POST',
+        body: JSON.stringify({ format: selectedFormat }),
+      });
+      setAdaptedContent(data.content);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al generar contenido');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>;
+  if (!material) return <div style={{ padding: 40, textAlign: 'center' }}>Material no encontrado</div>;
+
+  return (
+    <>
+      <div className="page-head">
+        <div className="head-fill">
+          <h1>{material.title}</h1>
+          <div className="sub">{material.subject} · {material.level}</div>
+        </div>
+        <button className="btn ghost" onClick={onBack}>
+          ← Atrás
+        </button>
+      </div>
+
+      <div className="material-detail-grid mt-22">
+        <div className="card detail-card">
+          <h2 className="card-title">Contenido original</h2>
+          <div className="material-preview" style={{ maxHeight: 320, overflow: 'auto' }}>
+            {material.content}
+          </div>
+        </div>
+
+        <div className="card detail-card">
+          <h2 className="card-title">Selecciona un formato</h2>
+          <div className="format-grid mt-16">
+            {formats.map((fmt) => (
+              <button
+                key={fmt.id}
+                className={`format-btn ${selectedFormat === fmt.id ? 'selected' : ''}`}
+                onClick={() => setSelectedFormat(fmt.id as any)}
+                type="button"
+              >
+                <div style={{ fontWeight: 600 }}>{fmt.label}</div>
+                <div style={{ fontSize: 13, color: '#666' }}>{fmt.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="btn"
+            style={{ marginTop: 18, width: '100%' }}
+            onClick={generateAdapted}
+            disabled={generating}
+          >
+            {generating ? '⏳ Generando...' : '✨ Generar contenido adaptado'}
+          </button>
+        </div>
+      </div>
+
+      {adaptedContent && (
+        <div className="card mt-22">
+          <h2 className="card-title">✨ Contenido adaptado ({selectedFormat})</h2>
+          <div style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', padding: 16, background: '#f9f9f9', borderRadius: 4 }}>
+            {adaptedContent}
+          </div>
+        </div>
+      )}
     </>
   );
 }
