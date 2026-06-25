@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from './brand/Icon';
 import { DiscereLogo } from './brand/Logo';
 import DecoLayer from './brand/Deco';
@@ -126,6 +126,25 @@ const Chevron = ({ c = '#ffd9c2' }: { c?: string }) => (
 
 function firstNameOf(name: string) {
   return name.split(' ')[0] || name;
+}
+
+/* Efecto "escribiéndose": revela el texto de a poco, como si la IA lo tipeara en vivo.
+   Para textos largos revela varios caracteres por tick para no tardar de más. */
+function Typewriter({ text }: { text: string }) {
+  const [shown, setShown] = useState('');
+  useEffect(() => {
+    setShown('');
+    if (!text) return;
+    let i = 0;
+    const step = Math.max(1, Math.ceil(text.length / 240));
+    const id = setInterval(() => {
+      i += step;
+      setShown(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, 12);
+    return () => clearInterval(id);
+  }, [text]);
+  return <>{shown}</>;
 }
 
 /* ============================================================
@@ -1419,6 +1438,20 @@ function TeacherAlumnos({
     }
   }
 
+  async function unlinkStudent(id: number, name: string) {
+    if (!window.confirm(`¿Desvincular a ${name}? Podrá volver a solicitarte más adelante.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/teacher/students/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   const pending = students.filter((s) => s.status === 'pending');
@@ -1468,6 +1501,13 @@ function TeacherAlumnos({
                     <div className="student-unit">{st.student.course || st.student.email}</div>
                   </div>
                 </div>
+                <button
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13, marginTop: 10 }}
+                  onClick={() => unlinkStudent(st.id, st.student.name)}
+                >
+                  Desvincular
+                </button>
               </div>
             ))}
           </div>
@@ -1502,24 +1542,42 @@ function TeacherContenido({
   const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = localStorage.getItem('authToken');
-        const res = await fetch(`${getApiBase()}/material`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  async function load() {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMaterials(data.materials || []);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteMaterial(id: number, title: string) {
+    if (!window.confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setMaterials(data.materials || []);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error');
-      } finally {
-        setLoading(false);
+        throw new Error(data.error || 'Error al eliminar');
       }
-    })();
-  }, []);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  useEffect(() => { load(); }, []);
 
   return (
     <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Contenido" onNav={onNav} onLogout={onLogout}>
@@ -1551,7 +1609,16 @@ function TeacherContenido({
               <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                 {m.content}
               </p>
-              <div style={{ fontSize: 11, color: 'var(--muted-soft)', marginTop: 4 }}>{new Date(m.createdAt).toLocaleDateString()}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-soft)' }}>{new Date(m.createdAt).toLocaleDateString()}</span>
+                <button
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13, color: 'var(--red)' }}
+                  onClick={() => deleteMaterial(m.id, m.title)}
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1581,7 +1648,7 @@ function TeacherContenidoForm({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [subject, setSubject] = useState('');
-  const [level, setLevel] = useState('Secundaria');
+  const level = 'Secundaria'; // Nivel fijo: todo el material es de Secundaria.
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -1621,13 +1688,6 @@ function TeacherContenidoForm({
         </label>
         <label className="field"><span>Materia (opcional)</span>
           <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Biología" />
-        </label>
-        <label className="field"><span>Nivel</span>
-          <select value={level} onChange={(e) => setLevel(e.target.value)}>
-            <option>Primaria</option>
-            <option>Secundaria</option>
-            <option>Universitario</option>
-          </select>
         </label>
         <label className="field"><span>Contenido</span>
           <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={10} placeholder="Pegá aquí el texto del material…" />
@@ -1696,6 +1756,20 @@ function StudentDocentes({
     }
   }
 
+  async function unlinkTeacher(id: number, name: string) {
+    if (!window.confirm(`¿Desvincularte de ${name}? Vas a dejar de ver sus materiales.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/student/teachers/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   const myTeacherIds = new Set(myTeachers.map((t) => t.teacher.id));
@@ -1727,6 +1801,13 @@ function StudentDocentes({
                 }}>
                   {st.status === 'active' ? '✓ Activo' : '⏳ Pendiente'}
                 </span>
+                <button
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13 }}
+                  onClick={() => unlinkTeacher(st.id, st.teacher.name)}
+                >
+                  Desvincular
+                </button>
               </div>
             ))}
           </div>
@@ -1869,6 +1950,15 @@ function StudentMaterialDetalle({
   const [adapted, setAdapted] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length, chatLoading]);
 
   useEffect(() => {
     (async () => {
@@ -1886,6 +1976,31 @@ function StudentMaterialDetalle({
       }
     })();
   }, [materialId]);
+
+  async function sendChat() {
+    const question = chatInput.trim();
+    if (!question || chatLoading) return;
+    const history = chatMessages.map((m) => ({ role: m.role === 'user' ? 'user' : 'model', text: m.text }));
+    setChatMessages((prev) => [...prev, { role: 'user', text: question }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${materialId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ question, history }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No pude responder ahora. Reintentá en unos segundos.');
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: data.answer }]);
+    } catch (e) {
+      const text = e instanceof Error && e.message ? e.message : 'No pude responder ahora. Reintentá en unos segundos.';
+      setChatMessages((prev) => [...prev, { role: 'assistant', text }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
 
   async function generate() {
     setGenerating(true);
@@ -1968,10 +2083,65 @@ function StudentMaterialDetalle({
           {adapted.startsWith('data:audio') ? (
             <audio controls src={adapted} style={{ width: '100%', marginTop: 12 }} />
           ) : (
-            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>{adapted}</p>
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>
+              <Typewriter text={adapted} />
+            </p>
           )}
         </div>
       )}
+
+      <div className="panel-box" style={{ marginTop: 22 }}>
+        <div className="box-title">💬 Asistente de estudio</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+          Preguntale lo que quieras sobre este material y te ayuda a entenderlo. Solo responde en base a este tema.
+        </p>
+
+        <div
+          ref={chatScrollRef}
+          style={{
+            marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10,
+            maxHeight: 340, overflowY: 'auto',
+          }}
+        >
+          {chatMessages.length === 0 && !chatLoading && (
+            <div style={{ fontSize: 13, color: 'var(--muted-soft)' }}>
+              Ej: «¿Qué es lo más importante de este tema?» o «Hacéme una pregunta para practicar».
+            </div>
+          )}
+          {chatMessages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '85%',
+                background: m.role === 'user' ? 'var(--blue)' : 'var(--cream)',
+                color: m.role === 'user' ? '#fff' : '#333',
+                borderRadius: 14, padding: '10px 14px', fontSize: 14, lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {m.role === 'assistant' ? <Typewriter text={m.text} /> : m.text}
+            </div>
+          ))}
+          {chatLoading && (
+            <div style={{ alignSelf: 'flex-start', fontSize: 13, color: 'var(--muted)' }}>Pensando…</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendChat(); }}
+            placeholder="Escribí tu pregunta…"
+            disabled={chatLoading}
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 12, border: '2px solid var(--line)', fontSize: 14 }}
+          />
+          <button className="btn blue" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+            Enviar
+          </button>
+        </div>
+      </div>
     </ScreenShell>
   );
 }

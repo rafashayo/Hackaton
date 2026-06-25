@@ -1,9 +1,23 @@
 import { Router } from 'express';
 import { prisma } from './db.ts';
 import { requireAuth } from './auth.ts';
-import { adaptContent } from './gemini.ts';
+import { adaptContent, answerQuestion } from './gemini.ts';
+import type { ChatTurn } from './gemini.ts';
 
 const router = Router();
+
+// Devuelve un mensaje amigable distinguiendo el caso de cuota de IA agotada.
+function friendlyAiError(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    if (/429|quota|Too Many/i.test(error.message)) {
+      return 'La IA llegó al límite gratuito por ahora. Probá de nuevo en un rato.';
+    }
+    if (/no configurada/i.test(error.message)) {
+      return 'La IA no está configurada en el servidor (falta GEMINI_API_KEY).';
+    }
+  }
+  return fallback;
+}
 
 // Middleware: verificar que es docente
 async function requireTeacher(req, res, next) {
@@ -152,7 +166,7 @@ router.post('/:id/adapt', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al generar contenido adaptado' });
+    res.status(503).json({ error: friendlyAiError(error, 'Error al generar contenido adaptado') });
   }
 });
 
@@ -171,6 +185,57 @@ router.get('/:id/adapted', requireAuth, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener contenido adaptado' });
+  }
+});
+
+// POST /material/:id/chat - Preguntarle al asistente de estudio sobre el material
+router.post('/:id/chat', requireAuth, async (req, res) => {
+  const { question, history } = req.body;
+
+  if (!question || typeof question !== 'string' || !question.trim()) {
+    return res.status(400).json({ error: 'Falta la pregunta' });
+  }
+
+  try {
+    const material = await prisma.material.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+
+    if (!material) {
+      return res.status(404).json({ error: 'Material no encontrado' });
+    }
+
+    const turns: ChatTurn[] = Array.isArray(history)
+      ? history
+          .filter((t) => t && (t.role === 'user' || t.role === 'model') && typeof t.text === 'string')
+          .map((t) => ({ role: t.role, text: t.text }))
+      : [];
+
+    const answer = await answerQuestion(material.content, question.trim(), turns);
+    res.json({ answer });
+  } catch (error) {
+    console.error(error);
+    res.status(503).json({ error: friendlyAiError(error, 'No pude responder ahora. Reintentá en unos segundos.') });
+  }
+});
+
+// DELETE /material/:id - Eliminar un material (solo el docente dueño)
+router.delete('/:id', requireAuth, requireTeacher, async (req, res) => {
+  try {
+    const material = await prisma.material.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+
+    if (!material || material.teacherId !== req.userId) {
+      return res.status(404).json({ error: 'Material no encontrado' });
+    }
+
+    // Las adaptaciones asociadas se borran en cascada (ver schema.prisma).
+    await prisma.material.delete({ where: { id: material.id } });
+    res.json({ message: 'Material eliminado' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar material' });
   }
 });
 
