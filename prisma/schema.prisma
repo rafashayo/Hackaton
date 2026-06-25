@@ -8,36 +8,19 @@ datasource db {
 }
 
 model User {
-  id                  Int                @id @default(autoincrement())
-  name                String
-  email               String             @unique
-  passwordHash        String
-  role                String             @default("alumno")
-  course              String?
-  profile             Profile?
-  // Docente: alumnos que enseña
-  students            StudentTeacher[]   @relation("TeacherStudents")
-  // Alumno: docentes que lo enseñan
-  teachers            StudentTeacher[]   @relation("StudentTeachers")
-  // Docente: materiales que crea
-  materials           Material[]         @relation("TeacherMaterials")
-  // Alumno: contenido adaptado que recibe
-  adaptedContent      AdaptedContent[]   @relation("StudentAdaptedContent")
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-}
-
-model StudentTeacher {
-  id        Int      @id @default(autoincrement())
-  student   User     @relation("StudentTeachers", fields: [studentId], references: [id], onDelete: Cascade)
-  studentId Int
-  teacher   User     @relation("TeacherStudents", fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId Int
-  status    String   @default("pending") // pending, active, completed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([studentId, teacherId])
+  id              Int              @id @default(autoincrement())
+  name            String
+  email           String           @unique
+  passwordHash    String
+  role            String           @default("alumno")
+  course          String?
+  profile         Profile?
+  materials       Material[]
+  studentLinks    StudentTeacher[] @relation("StudentLinks")
+  teacherLinks    StudentTeacher[] @relation("TeacherLinks")
+  adaptedContents AdaptedContent[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model Profile {
@@ -54,25 +37,38 @@ model Profile {
 }
 
 model Material {
-  id        Int      @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   title     String
-  content   String   // Texto extraído del PDF o ingresado
-  teacher   User     @relation("TeacherMaterials", fields: [teacherId], references: [id], onDelete: Cascade)
+  content   String
+  teacher   User             @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId Int
-  subject   String?  // Matemática, Historia, etc.
-  level     String   // Primaria, Secundaria, Universitario
-  adaptedContent AdaptedContent[]
+  subject   String?
+  level     String
+  adapted   AdaptedContent[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model StudentTeacher {
+  id        Int      @id @default(autoincrement())
+  student   User     @relation("StudentLinks", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId Int
+  teacher   User     @relation("TeacherLinks", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId Int
+  status    String   @default("pending")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([studentId, teacherId])
 }
 
 model AdaptedContent {
   id         Int      @id @default(autoincrement())
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
   materialId Int
-  student    User     @relation("StudentAdaptedContent", fields: [studentId], references: [id], onDelete: Cascade)
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId  Int
-  format     String   // resumen, explicacion, ejercicios, ejemplos, esquema, audio
-  content    String   // Contenido adaptado generado por Gemini
+  format     String
+  content    String
   createdAt  DateTime @default(now())
 }

@@ -78,4 +78,24 @@ router.put('/students/:id/status', requireAuth, requireTeacher, async (req, res)
   }
 });
 
+// DELETE /teacher/students/:id - Desvincular a un alumno (el :id es la relación)
+router.delete('/students/:id', requireAuth, requireTeacher, async (req, res) => {
+  try {
+    const relation = await prisma.studentTeacher.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+
+    // Solo el docente dueño de la relación puede desvincular
+    if (!relation || relation.teacherId !== req.userId) {
+      return res.status(404).json({ error: 'Vínculo no encontrado' });
+    }
+
+    await prisma.studentTeacher.delete({ where: { id: relation.id } });
+    res.json({ message: 'Alumno desvinculado' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al desvincular alumno' });
+  }
+});
+
 export default router;

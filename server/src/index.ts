@@ -40,6 +40,5 @@ app.use((err, req, res, next) => {
 
 app.listen(port, async () => {
   console.log(`Server escuchando en http://localhost:${port}`);
-  console.log(`JWT_SECRET configured: ${process.env.JWT_SECRET ? 'yes (from .env)' : 'no (using default)'}`);
   await prisma.$connect();
 });

@@ -1,5 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from './brand/Icon';
+import { DiscereLogo } from './brand/Logo';
+import DecoLayer from './brand/Deco';
+import {
+  tasks,
+  classes,
+  pathNodes,
+  lessons,
+  students as demoStudents,
+  alerts,
+  friction,
+  masterySkills,
+  activity,
+  journeySteps,
+  okCount,
+  warnCount,
+  riskCount,
+  avgProg,
+  type Student,
+  type Lesson,
+} from './data/demo';
 
 type User = {
   id: number;
@@ -20,6 +40,25 @@ type Profile = {
   intereses?: string;
 };
 
+type View =
+  | 'welcome'
+  | 'login'
+  | 'register'
+  | 'inicio'
+  | 'senda'
+  | 'leccion'
+  | 'recompensa'
+  | 'profileForm'
+  | 'profileResult'
+  | 'panel'
+  | 'detalle'
+  | 'alumnos'
+  | 'contenido'
+  | 'contenidoForm'
+  | 'misDocentes'
+  | 'materiales'
+  | 'materialDetalle';
+
 const questions = [
   { key: 'q1', label: 'Cuando un tema me interesa, lo investigo más aunque no entre en el examen.' },
   { key: 'q2', label: 'Estudio sobre todo para aprobar y zafar.' },
@@ -37,122 +76,125 @@ const questions = [
 const formats = ['Video', 'Texto/apunte', 'Ejercicios', 'Ejemplos reales', 'Esquemas', 'Audio'];
 const workModes = ['Solo/a', 'En grupo', 'Depende'];
 
+// Significado legible de cada dimensión del perfil (las claves cortas viven en los datos).
+const DIM_LABELS: Record<string, string> = {
+  MI: 'Inteligencias Múltiples',
+  UTIL: 'Utilidad / Orientación práctica',
+  MC: 'Metacognición',
+  AR: 'Análisis / Reflexión',
+  EST: 'Estrategia',
+  COL: 'Colaboración',
+  ANS: 'Ansiedad / Motivación',
+  AE: 'Autonomía / Autoeficacia',
+};
+
 function getApiBase() {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 }
 
-async function api(path: string, options: RequestInit = {}) {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...((options.headers as Record<string, string>) || {}),
-  };
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  const response = await fetch(`${getApiBase()}${path}`, { ...options, headers });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error || 'Error de servidor');
-  }
-  return data;
-}
-
-/* ---------- iconos en línea (estilo Discere) ---------- */
-const Flame = ({ s = 20 }: { s?: number }) => (
+/* ---------- íconos en línea (estilo Discere) ---------- */
+const Flame = ({ s = 18 }: { s?: number }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="#FF5E00">
     <path d="M12 2c2 3 1 5 0 6.2 1.1.2 2.2-.8 2.4-2.7 2.1 1.9 3.6 4.3 3.6 7.5a6 6 0 1 1-12 0c0-2.1 1-3.6 2.2-4.7-.1 1.4.6 2.4 1.6 2.6C12.4 8.5 11.4 5.4 12 2z" />
   </svg>
 );
-const Star = ({ s = 19 }: { s?: number }) => (
-  <svg width={s} height={s} viewBox="0 0 24 24" fill="#00A6ED">
+const Star = ({ s = 17, c = '#00A6ED' }: { s?: number; c?: string }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill={c}>
     <path d="M12 2l2.9 6.1 6.6.7-5 4.5 1.4 6.5L12 17.1 6.1 20.3l1.4-6.5-5-4.5 6.6-.7z" />
   </svg>
 );
-const HomeI = ({ s = 22 }: { s?: number }) => (
-  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <path d="M3 11l9-7 9 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M5 9.5V20h14V9.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+const Heart = ({ s = 22 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="#E54B4B">
+    <path d="M12 21s-7-4.4-9.4-8.3C.8 9.6 2.8 5.5 6.6 5.5c2.3 0 3.8 1.6 5.4 3.4 1.6-1.8 3.1-3.4 5.4-3.4 3.8 0 5.8 4.1 4 7.2C19 16.6 12 21 12 21z" />
   </svg>
 );
-const UserI = ({ s = 22 }: { s?: number }) => (
+const Check = ({ s = 15, c = '#00A6ED', w = 3.2 }: { s?: number; c?: string; w?: number }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2.2" />
-    <path d="M4.5 20a7.5 7.5 0 0 1 15 0" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M5 13l4 4L19 7" stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-const GridI = ({ s = 22 }: { s?: number }) => (
+const Cross = ({ s = 12, c = '#fff', w = 3.5 }: { s?: number; c?: string; w?: number }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.1" />
-    <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.1" />
-    <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.1" />
-    <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.1" />
+    <path d="M6 6l12 12M18 6L6 18" stroke={c} strokeWidth={w} strokeLinecap="round" />
   </svg>
 );
-const PeopleI = ({ s = 22 }: { s?: number }) => (
-  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-    <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="2.1" />
-    <path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
-    <path d="M16 5.2a3.2 3.2 0 0 1 0 5.8M17 13.5a5.5 5.5 0 0 1 3.5 5.1" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
-  </svg>
-);
-const Chevron = () => (
+const Chevron = ({ c = '#ffd9c2' }: { c?: string }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flex: 'none' }}>
-    <path d="M9 6l6 6-6 6" stroke="#c8bfa6" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 6l6 6-6 6" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-function initials(name: string) {
-  return name
-    .split(' ')
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+function firstNameOf(name: string) {
+  return name.split(' ')[0] || name;
 }
 
+/* Efecto "escribiéndose": revela el texto de a poco, como si la IA lo tipeara en vivo.
+   Para textos largos revela varios caracteres por tick para no tardar de más. */
+function Typewriter({ text }: { text: string }) {
+  const [shown, setShown] = useState('');
+  useEffect(() => {
+    setShown('');
+    if (!text) return;
+    let i = 0;
+    const step = Math.max(1, Math.ceil(text.length / 240));
+    const id = setInterval(() => {
+      i += step;
+      setShown(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, 12);
+    return () => clearInterval(id);
+  }, [text]);
+  return <>{shown}</>;
+}
+
+/* ============================================================
+   App
+   ============================================================ */
 function App() {
-  const [view, setView] = useState<'home' | 'login' | 'register' | 'profileForm' | 'profileResult' | 'teacherHome' | 'teacherStudents' | 'studentTeachers' | 'studentRequestTeacher' | 'teacherMaterials' | 'teacherMaterialForm' | 'studentMaterials' | 'studentMaterialDetail'>('home');
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [view, setView] = useState<View>('welcome');
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student>(demoStudents[0]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+  // Progreso en la senda de Matemática (demo): cantidad de ejercicios completados (0..3).
+  const [mathProgress, setMathProgress] = useState(0);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
-    if (storedToken) {
-      fetchProfile(storedToken);
+    const storedUser = localStorage.getItem('user');
+    if (storedToken && storedUser) {
+      const u: User = JSON.parse(storedUser);
+      setUser(u);
+      if (u.role === 'docente') {
+        setView('panel');
+      } else {
+        fetchProfile();
+        setView('inicio');
+      }
     }
   }, []);
 
-  async function fetchProfile(authToken: string) {
-    setLoading(true);
+  async function api(path: string, options: RequestInit = {}) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((options.headers as Record<string, string>) || {}),
+    };
+    const token = localStorage.getItem('authToken');
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`${getApiBase()}${path}`, { ...options, headers });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error || 'Error de servidor');
+    return data;
+  }
+
+  async function fetchProfile() {
     try {
-      const storedUser = localStorage.getItem('user');
-      if (!storedUser) return;
-      const user = JSON.parse(storedUser);
-      
-      if (user.role === 'docente') {
-        setView('teacherHome');
-        return;
-      }
-      
       const data = await api('/profile/me');
       setProfile(data.profile);
-      setView(data.profile ? 'profileResult' : 'profileForm');
     } catch (err) {
       console.error(err);
-      if (user?.role === 'docente') {
-        setView('teacherHome');
-      } else {
-        setError('No se pudo cargar el perfil');
-      }
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -160,14 +202,16 @@ function App() {
     setError(null);
     setLoading(true);
     try {
-      const data = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
-      await fetchProfile(data.token);
+      if (data.user.role === 'docente') {
+        setView('panel');
+      } else {
+        await fetchProfile();
+        setView('inicio');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -192,7 +236,7 @@ function App() {
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
-      setView(data.user.role === 'alumno' ? 'profileForm' : 'teacherHome');
+      setView(data.user.role === 'docente' ? 'panel' : 'profileForm');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -206,148 +250,140 @@ function App() {
     setUser(null);
     setProfile(null);
     setError(null);
-    setView('home');
+    setMathProgress(0);
+    setView('welcome');
   }
 
-  /* ---------- sin sesión: bienvenida / auth ---------- */
+  /* ---------- sin sesión ---------- */
   if (!user) {
     if (view === 'login') {
-      return <AuthForm mode="login" loading={loading} error={error} onSubmit={handleLogin} onBack={() => { setError(null); setView('home'); }} />;
+      return <AuthForm mode="login" loading={loading} error={error} onSubmit={handleLogin} onBack={() => { setError(null); setView('welcome'); }} />;
     }
     if (view === 'register') {
-      return <AuthForm mode="register" loading={loading} error={error} onSubmit={handleRegister} onBack={() => { setError(null); setView('home'); }} />;
+      return <AuthForm mode="register" loading={loading} error={error} onSubmit={handleRegister} onBack={() => { setError(null); setView('welcome'); }} />;
     }
     return <Welcome onLogin={() => setView('login')} onRegister={() => setView('register')} />;
   }
 
-  /* ---------- con sesión: shell con sidebar ---------- */
   const isAlumno = user.role === 'alumno';
 
+  function openStudent(s: Student) {
+    setSelectedStudent(s);
+    setView('detalle');
+  }
+
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <Icon name="Group4" size={26} />
-          </div>
-          <span className="brand-name">Discere</span>
-        </div>
-        {!isAlumno && <div className="sidebar-label">DOCENTE</div>}
-        <nav className="nav">
-          {isAlumno ? (
-            <>
-              <button className={`nav-item ${view !== 'profileForm' && view !== 'profileResult' && view !== 'studentTeachers' && view !== 'studentRequestTeacher' && view !== 'studentMaterials' && view !== 'studentMaterialDetail' ? 'active' : ''}`} onClick={() => setView('home')}>
-                <HomeI /> <span>Inicio</span>
-              </button>
-              <button
-                className={`nav-item ${view === 'profileForm' || view === 'profileResult' ? 'active' : ''}`}
-                onClick={() => setView(profile ? 'profileResult' : 'profileForm')}
-              >
-                <UserI /> <span>Mi perfil</span>
-              </button>
-              <button
-                className={`nav-item ${view === 'studentTeachers' || view === 'studentRequestTeacher' ? 'active' : ''}`}
-                onClick={() => setView('studentTeachers')}
-              >
-                <GridI /> <span>Mis docentes</span>
-              </button>
-              <button
-                className={`nav-item ${view === 'studentMaterials' || view === 'studentMaterialDetail' ? 'active' : ''}`}
-                onClick={() => setView('studentMaterials')}
-              >
-                <GridI /> <span>📚 Materiales</span>
-              </button>
-            </>
+    <div className="screen-wrap">
+      {error && <div className="toast error">{error}</div>}
+
+      {isAlumno && view === 'inicio' && (
+        <Inicio user={user} profile={profile} onNav={setView} onOpenClass={() => setView('senda')} />
+      )}
+      {isAlumno && view === 'senda' && (
+        <Senda progress={mathProgress} onNav={setView} onStart={() => setView('leccion')} onLogout={handleLogout} />
+      )}
+      {isAlumno && view === 'leccion' && (
+        <Leccion
+          lesson={lessons[Math.min(mathProgress, lessons.length - 1)]}
+          onNav={setView}
+          onComplete={() => { setMathProgress((p) => Math.min(3, p + 1)); setView('recompensa'); }}
+          onExit={() => setView('senda')}
+        />
+      )}
+      {isAlumno && view === 'recompensa' && <Recompensa onContinue={() => setView('senda')} />}
+      {isAlumno && view === 'profileForm' && (
+        <ProfileShell user={user} active="Perfil" onNav={setView} onLogout={handleLogout}>
+          <ProfileForm onSaved={(p) => { setProfile(p); setView('profileResult'); }} />
+        </ProfileShell>
+      )}
+      {isAlumno && view === 'profileResult' && (
+        <ProfileShell user={user} active="Perfil" onNav={setView} onLogout={handleLogout}>
+          {profile ? (
+            <ProfileResult profile={profile} onEdit={() => setView('profileForm')} />
           ) : (
-            <>
-              <button className={`nav-item ${view === 'teacherHome' ? 'active' : ''}`} onClick={() => setView('teacherHome')}>
-                <HomeI /> <span>Inicio</span>
-              </button>
-              <button className={`nav-item ${view === 'teacherStudents' ? 'active' : ''}`} onClick={() => setView('teacherStudents')}>
-                <PeopleI /> <span>Mis alumnos</span>
-              </button>
-              <button className={`nav-item ${view === 'teacherMaterials' || view === 'teacherMaterialForm' ? 'active' : ''}`} onClick={() => setView('teacherMaterials')}>
-                <GridI /> <span>📚 Mis materiales</span>
-              </button>
-            </>
+            <EmptyProfile onStart={() => setView('profileForm')} />
           )}
-        </nav>
-        <div className="sidebar-spacer" />
-        <div className="sidebar-user">
-          <div className="avatar">{initials(user.name)}</div>
-          <div>
-            <div className="name">{user.name}</div>
-            <div className="role">{isAlumno ? 'Estudiante' : 'Docente'}</div>
-          </div>
-        </div>
-        <button className="btn ghost block" style={{ marginTop: 12 }} onClick={handleLogout}>
-          Cerrar sesión
-        </button>
-      </aside>
+        </ProfileShell>
+      )}
+      {isAlumno && view === 'misDocentes' && (
+        <StudentDocentes user={user} onNav={setView} onLogout={handleLogout} setError={setError} />
+      )}
+      {isAlumno && view === 'materiales' && (
+        <StudentMateriales
+          user={user}
+          onNav={setView}
+          onLogout={handleLogout}
+          setError={setError}
+          onSelectMaterial={(id: number) => { setSelectedMaterialId(id); setView('materialDetalle'); }}
+        />
+      )}
+      {isAlumno && view === 'materialDetalle' && selectedMaterialId !== null && (
+        <StudentMaterialDetalle
+          user={user}
+          materialId={selectedMaterialId}
+          onNav={setView}
+          onBack={() => setView('materiales')}
+          onLogout={handleLogout}
+          setError={setError}
+        />
+      )}
 
-      <main className="content">
-        {loading && (
-          <div className="banner" style={{ marginBottom: 16 }}>
-            <span className="spin" style={{ marginRight: 8 }}>⌛</span> Cargando…
-          </div>
-        )}
-        {error && (
-          <div className="banner error" style={{ marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
-
-        {isAlumno && view !== 'profileForm' && view !== 'profileResult' && (
-          <StudentHome user={user} profile={profile} onOpenProfile={() => setView(profile ? 'profileResult' : 'profileForm')} />
-        )}
-
-        {isAlumno && view === 'profileForm' && (
-          <ProfileForm
-            onSaved={(p) => {
-              setProfile(p);
-              setView('profileResult');
-            }}
-          />
-        )}
-
-        {isAlumno && view === 'profileResult' && profile && (
-          <ProfileResult profile={profile} onEdit={() => setView('profileForm')} />
-        )}
-
-        {isAlumno && view === 'studentTeachers' && (
-          <StudentTeachers user={user} onRequestTeacher={() => setView('studentRequestTeacher')} error={error} setError={setError} />
-        )}
-
-        {isAlumno && view === 'studentRequestTeacher' && (
-          <StudentRequestTeacher user={user} onBack={() => setView('studentTeachers')} error={error} setError={setError} />
-        )}
-
-        {isAlumno && view === 'studentMaterials' && (
-          <StudentMaterials user={user} onSelectMaterial={() => setView('studentMaterialDetail')} error={error} setError={setError} />
-        )}
-
-        {isAlumno && view === 'studentMaterialDetail' && (
-          <StudentMaterialDetail user={user} onBack={() => setView('studentMaterials')} error={error} setError={setError} />
-        )}
-
-        {!isAlumno && view === 'teacherHome' && (
-          <TeacherPanel user={user} onGoToStudents={() => setView('teacherStudents')} />
-        )}
-
-        {!isAlumno && view === 'teacherStudents' && (
-          <TeacherStudents user={user} error={error} setError={setError} />
-        )}
-
-        {!isAlumno && view === 'teacherMaterials' && (
-          <TeacherMaterials user={user} onCreateMaterial={() => setView('teacherMaterialForm')} error={error} setError={setError} />
-        )}
-
-        {!isAlumno && view === 'teacherMaterialForm' && (
-          <TeacherMaterialForm user={user} onBack={() => setView('teacherMaterials')} onSaved={() => setView('teacherMaterials')} error={error} setError={setError} />
-        )}
-      </main>
+      {!isAlumno && view === 'panel' && (
+        <Panel user={user} onNav={setView} onOpenStudent={openStudent} onLogout={handleLogout} />
+      )}
+      {!isAlumno && view === 'detalle' && (
+        <Detalle student={selectedStudent} onBack={() => setView('panel')} onNav={setView} onLogout={handleLogout} />
+      )}
+      {!isAlumno && view === 'alumnos' && (
+        <TeacherAlumnos user={user} onNav={setView} onLogout={handleLogout} setError={setError} />
+      )}
+      {!isAlumno && view === 'contenido' && (
+        <TeacherContenido user={user} onNav={setView} onLogout={handleLogout} setError={setError} onCreate={() => setView('contenidoForm')} />
+      )}
+      {!isAlumno && view === 'contenidoForm' && (
+        <TeacherContenidoForm user={user} onNav={setView} onLogout={handleLogout} setError={setError} onSaved={() => setView('contenido')} onBack={() => setView('contenido')} />
+      )}
     </div>
   );
+}
+
+/* ============================================================
+   Top navigation (web)
+   ============================================================ */
+function TopNav({
+  items,
+  active,
+  onSelect,
+  right,
+  compact,
+}: {
+  items: string[];
+  active: string;
+  onSelect: (item: string) => void;
+  right?: React.ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div className="topnav">
+      <nav className="topnav-links">
+        {items.map((it) => (
+          <button
+            key={it}
+            className={`topnav-link ${it === active ? 'active' : ''}`}
+            onClick={() => onSelect(it)}
+          >
+            {it}
+          </button>
+        ))}
+      </nav>
+      {right}
+      <DiscereLogo size={compact ? 28 : 30} />
+    </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return <div className="chip">{children}</div>;
 }
 
 /* ============================================================
@@ -358,30 +394,19 @@ function Welcome({ onLogin, onRegister }: { onLogin: () => void; onRegister: () 
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="brand-mark">
-            <Icon name="Group4" size={26} />
-          </div>
-          <span className="brand-name">Discere</span>
+          <DiscereLogo size={30} wordmark />
         </div>
         <h1>Aprendé a tu manera.</h1>
         <p className="lead">
           Una senda gamificada que se adapta a cómo aprendés. Tu perfil es una foto del momento, no una etiqueta fija.
         </p>
-        <div className="row" style={{ marginBottom: 22, gap: 12 }}>
-          <div className="stat-pill">
-            <Flame /> Racha diaria
-          </div>
-          <div className="stat-pill">
-            <Star /> XP &amp; insignias
-          </div>
+        <div className="row" style={{ marginBottom: 22, gap: 12, flexWrap: 'wrap' }}>
+          <div className="stat-pill"><Flame /> Racha diaria</div>
+          <div className="stat-pill"><Star /> XP &amp; insignias</div>
         </div>
         <div className="btn-row">
-          <button className="btn block" onClick={onRegister}>
-            Crear cuenta
-          </button>
-          <button className="btn ghost block" onClick={onLogin}>
-            Ya tengo cuenta
-          </button>
+          <button className="btn block" onClick={onRegister}>Crear cuenta</button>
+          <button className="btn ghost block" onClick={onLogin}>Ya tengo cuenta</button>
         </div>
       </div>
     </div>
@@ -418,12 +443,7 @@ function AuthForm({
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-brand">
-          <div className="brand-mark">
-            <Icon name="Group4" size={26} />
-          </div>
-          <span className="brand-name">Discere</span>
-        </div>
+        <div className="auth-brand"><DiscereLogo size={30} wordmark /></div>
         <h1>{mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</h1>
         <p className="lead">
           {mode === 'login' ? 'Volvé a tu senda y mantené tu racha.' : 'Registrate como alumno o docente para empezar.'}
@@ -466,9 +486,7 @@ function AuthForm({
           <button className="btn block" onClick={submit} disabled={loading}>
             {loading ? 'Un momento…' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
           </button>
-          <button className="btn ghost block" onClick={onBack} type="button">
-            Volver
-          </button>
+          <button className="btn ghost block" onClick={onBack} type="button">Volver</button>
         </div>
       </div>
     </div>
@@ -476,116 +494,715 @@ function AuthForm({
 }
 
 /* ============================================================
-   Inicio del alumno
+   01 · Inicio — alumno
    ============================================================ */
-function StudentHome({
+function Inicio({
   user,
   profile,
-  onOpenProfile,
+  onNav,
+  onOpenClass,
 }: {
   user: User;
   profile: Profile | null;
-  onOpenProfile: () => void;
+  onNav: (v: View) => void;
+  onOpenClass: () => void;
 }) {
-  const firstName = user.name.split(' ')[0];
+  void profile;
+  const handleNav = (item: string) => {
+    if (item === 'Perfil') onNav('profileResult');
+    else if (item === 'Materiales') onNav('materiales');
+    else if (item === 'Docentes') onNav('misDocentes');
+    else onNav('inicio');
+  };
+  return (
+    <div className="screen" data-set="inicio">
+      <DecoLayer set="inicio" />
+      <div className="screen-inner">
+        <TopNav
+          items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
+          active="Inicio"
+          onSelect={handleNav}
+          right={
+            <>
+              <Chip><Flame /> <span>7</span></Chip>
+              <Chip><Star /> <span>1 240</span></Chip>
+            </>
+          }
+        />
+
+        <div style={{ paddingTop: 14 }}>
+          <div className="headline">Hola, {firstNameOf(user.name)}</div>
+          <div className="headline-sub">Esto es lo que tenés para hoy.</div>
+        </div>
+
+        <div className="inicio-cols">
+          {/* avatar */}
+          <div className="inicio-avatar">
+            <div className="avatar-stage">
+              <div className="avatar-shadow" />
+              <img src="/brand/avatars/a3.png" alt="Tu avatar" className="avatar-img" />
+            </div>
+            <div className="avatar-tags">
+              <span className="tag blue">Nivel 5</span>
+              <span className="tag orange">Liga Oro</span>
+              <span className="tag cream">88% precisión</span>
+            </div>
+          </div>
+
+          {/* tareas */}
+          <div className="inicio-tasks">
+            <div className="col-title">Tareas Pendientes</div>
+            <div className="task-list">
+              {tasks.map((t) => (
+                <div className="task-row" key={t.name}>
+                  <div className="grow">
+                    <div className="task-name">{t.name}</div>
+                    <div className="task-meta">{t.meta}</div>
+                  </div>
+                  <Chevron />
+                </div>
+              ))}
+            </div>
+            <div className="ai-hint">
+              <div className="ai-orb bob"><Icon name="Group4" width={30} height={20} /></div>
+              <div className="ai-hint-text">
+                Empecemos por <b>Fracciones</b> — detecté que es lo que más te cuesta.
+              </div>
+            </div>
+          </div>
+
+          {/* clases */}
+          <div className="inicio-classes">
+            <div className="col-title">Mis Clases</div>
+            <div className="class-list">
+              {classes.map((c) => (
+                <button
+                  key={c.name}
+                  className="class-row"
+                  onClick={c.active ? onOpenClass : undefined}
+                  style={{ cursor: c.active ? 'pointer' : 'default' }}
+                >
+                  <span className="class-name">{c.name}</span>
+                  {c.active && <span className="class-badge">En curso</span>}
+                  <span className="class-prog">{c.prog}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   02 · Senda de la clase — alumno
+   ============================================================ */
+function Senda({
+  progress,
+  onNav,
+  onStart,
+  onLogout,
+}: {
+  progress: number;
+  onNav: (v: View) => void;
+  onStart: () => void;
+  onLogout: () => void;
+}) {
+  // Estado de cada nodo según el progreso: completados, el actual (siguiente jugable
+  // hasta el 3) y los bloqueados. El 4 nunca se desbloquea en la demo.
+  const nodeState = (n: number): 'done' | 'current' | 'locked' =>
+    n <= progress ? 'done' : n === progress + 1 && n <= 3 ? 'current' : 'locked';
+  const nodes = pathNodes.map((nd) => ({ ...nd, state: nodeState(nd.n) }));
+  // Un tramo (hacia el nodo destino) se pinta sólido cuando ese nodo ya está
+  // completado o es el actual; si no, queda punteado.
+  const segActive = (toNode: number) => {
+    const st = nodeState(toNode);
+    return st === 'done' || st === 'current';
+  };
+  const segProps = (active: boolean) =>
+    active
+      ? { stroke: '#00A6ED', strokeWidth: 9, strokeLinecap: 'round' as const }
+      : { stroke: '#dcd3bd', strokeWidth: 9, strokeLinecap: 'round' as const, strokeDasharray: '2 20' };
+  return (
+    <div className="screen" data-set="senda">
+      <DecoLayer set="senda" />
+      <div className="screen-inner senda-grid">
+        <div className="senda-main">
+          <TopNav
+            items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
+            active="Inicio"
+            onSelect={(it) => {
+              if (it === 'Perfil') onNav('profileResult');
+              else if (it === 'Materiales') onNav('materiales');
+              else if (it === 'Docentes') onNav('misDocentes');
+              else onNav('inicio');
+            }}
+            right={<Chip><Flame /> <span>7</span></Chip>}
+            compact
+          />
+
+          <div className="eyebrow">Unidad 2</div>
+          <div className="headline mid">Matemática</div>
+          <div className="headline-sub">Ecuaciones lineales · senda calibrada por la IA</div>
+
+          <div className="path-area">
+            <svg width="620" height="520" viewBox="0 0 620 520" fill="none" className="path-svg">
+              <path d="M150 50 C100 92 90 110 90 156 C90 206 270 214 270 260" {...segProps(segActive(2))} />
+              <path d="M270 260 C270 308 88 312 88 360" {...segProps(segActive(3))} />
+              <path d="M88 360 C88 410 286 424 286 466" {...segProps(segActive(4))} />
+            </svg>
+            {nodes.map((node) => {
+              if (node.state === 'current') {
+                // El nodo actual mide 92px (16 más que los de 76px); lo desplazamos
+                // -8px en x/y para que su centro coincida con el del nodo normal y el camino.
+                return (
+                  <div key={node.n} style={{ position: 'absolute', left: node.left - 8, top: node.top - 8, width: 92, height: 92 }}>
+                    <div className="node-pulse" />
+                    <div className="node-tip">EMPEZAR<span className="node-tip-arrow" /></div>
+                    <button className="node node-current" onClick={onStart}>{node.n}</button>
+                  </div>
+                );
+              }
+              const cls = node.state === 'done' ? 'node-done' : 'node-locked';
+              return (
+                <div key={node.n} style={{ position: 'absolute', left: node.left, top: node.top, width: 76, height: 76 }}>
+                  <div className={`node ${cls}`}>{node.n}</div>
+                  {node.state === 'done' && (
+                    <div className="node-check"><Check /></div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* right rail */}
+        <aside className="senda-rail">
+          <div className="rail-card">
+            <div className="rail-title">Meta diaria</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14 }}>
+              <div className="ring" style={{ background: 'conic-gradient(#FF5E00 75%, #f0e7d2 0)' }}>
+                <div className="ring-hole" style={{ color: '#FF5E00' }}>75%</div>
+              </div>
+              <div>
+                <div className="rail-strong">30 / 40 XP</div>
+                <div className="rail-muted">Te faltan 10 XP hoy</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rail-card navy">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div className="ai-orb bob"><Icon name="Group4" width={32} height={22} /></div>
+              <div className="rail-ai-title">Tu compañero IA</div>
+            </div>
+            <div className="rail-ai-body">
+              Reforcé esta senda con <b>fracciones</b> antes del próximo desafío. Vas muy bien — seguí así.
+            </div>
+          </div>
+
+          <div className="rail-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="rail-title">Liga Oro</span>
+              <span style={{ fontWeight: 700, fontSize: 13, color: '#FF5E00' }}>Puesto 3</span>
+            </div>
+            <div className="league-bars">
+              <i className="on" /><i className="on" /><i className="on" /><i /><i />
+            </div>
+            <div className="rail-muted" style={{ marginTop: 9 }}>Ascendés a Platino con 40 XP más</div>
+          </div>
+
+          <button className="btn ghost block" style={{ marginTop: 'auto' }} onClick={onLogout}>Cerrar sesión</button>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   03 · Lección · feedback de IA — alumno
+   ============================================================ */
+function Leccion({
+  lesson,
+  onComplete,
+  onExit,
+}: {
+  lesson: Lesson;
+  onNav: (v: View) => void;
+  onComplete: () => void;
+  onExit: () => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [hearts, setHearts] = useState(4);
+
+  const correctIdx = lesson.options.findIndex((o) => o.state === 'correct');
+  const isCorrect = checked && selected === correctIdx;
+  const isWrong = checked && selected !== null && selected !== correctIdx;
+
+  function tileClass(i: number) {
+    if (!checked) return selected === i ? 'tile selected' : 'tile';
+    if (i === correctIdx) return 'tile correct';
+    if (i === selected) return 'tile wrong';
+    return 'tile';
+  }
+
+  function check() {
+    if (selected === null) return;
+    setChecked(true);
+    if (selected !== correctIdx) setHearts((h) => Math.max(0, h - 1));
+  }
+
+  function retry() {
+    setChecked(false);
+    setSelected(null);
+  }
+
+  return (
+    <div className="screen" data-set="leccion">
+      <DecoLayer set="leccion" />
+      <div className="screen-inner leccion-flow">
+        {/* top */}
+        <div className="leccion-top">
+          <button className="icon-btn" onClick={onExit} aria-label="Salir">
+            <Cross s={26} c="#c2b89f" w={3} />
+          </button>
+          <div className="progress-track"><div className="progress-fill" style={{ width: '62%' }} /></div>
+          <div className="hearts"><Heart /> <span>{hearts}</span></div>
+          <DiscereLogo size={28} />
+        </div>
+
+        {/* center */}
+        <div className="leccion-center">
+          <div className="leccion-q">
+            <div className="leccion-eyebrow">{lesson.prompt}</div>
+            <div className="equation-card">{lesson.equation}</div>
+            <div className="tiles">
+              {lesson.options.map((o, i) => (
+                <button
+                  key={o.label}
+                  className={tileClass(i)}
+                  onClick={() => !checked && setSelected(i)}
+                  disabled={checked}
+                >
+                  {o.label}
+                  {checked && i === correctIdx && <span className="tile-badge ok"><Check s={14} c="#fff" w={3.5} /></span>}
+                  {checked && i === selected && i !== correctIdx && <span className="tile-badge bad"><Cross /></span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* feedback */}
+        {!checked && (
+          <div className="leccion-foot idle">
+            <div className="foot-inner">
+              <div style={{ flex: 1 }} />
+              <button className="btn blue" disabled={selected === null} onClick={check}>COMPROBAR</button>
+            </div>
+          </div>
+        )}
+        {isCorrect && (
+          <div className="leccion-foot good">
+            <div className="foot-inner">
+              <div className="fb-orb"><Icon name="Group4" width={34} height={24} /></div>
+              <div style={{ flex: 1 }}>
+                <div className="fb-title ok">¡Excelente! Despejaste bien</div>
+                <div className="fb-body">Restaste 6 de los dos lados y dividiste por 2: <b>14 − 6 = 8</b>, y <b>8 ÷ 2 = 4</b>.</div>
+              </div>
+              <button className="btn" onClick={onComplete}>CONTINUAR</button>
+            </div>
+          </div>
+        )}
+        {isWrong && (
+          <div className="leccion-foot bad">
+            <div className="foot-inner">
+              <div className="fb-orb"><Icon name="Group4" width={34} height={24} /></div>
+              <div style={{ flex: 1 }}>
+                <div className="fb-title">{lesson.feedbackTitle}</div>
+                <div className="fb-body">{lesson.feedbackBody}</div>
+              </div>
+              <button className="btn red" onClick={retry}>REINTENTAR</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   04 · Recompensa · XP + racha — alumno
+   ============================================================ */
+function Recompensa({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="screen" data-set="recompensa">
+      <DecoLayer set="recompensa" />
+      <div className="confetti" aria-hidden>
+        <i style={{ left: 300, top: 90, background: '#00A6ED', borderRadius: 3, transform: 'rotate(20deg)' }} />
+        <i style={{ left: 500, top: 60, background: '#FF5E00', borderRadius: '50%' }} />
+        <i style={{ left: 820, top: 80, background: '#F5E0B7', borderRadius: 3, transform: 'rotate(-15deg)' }} />
+        <i style={{ left: 980, top: 120, background: '#FF5E00', borderRadius: 2, transform: 'rotate(30deg)' }} />
+        <i style={{ left: 640, top: 50, background: '#00A6ED', borderRadius: '50%' }} />
+      </div>
+      <div className="screen-inner">
+        <div className="topnav">
+          <div style={{ flex: 1 }} />
+          <DiscereLogo size={30} />
+        </div>
+
+        <div className="reward-center">
+          <div className="trophy bob"><img src="/brand/deco/trophy.png" alt="Trofeo" /></div>
+          <div className="headline mid center">¡Lección completada!</div>
+          <div className="headline-sub center">Ecuaciones lineales · Unidad 2</div>
+
+          <div className="reward-stats">
+            <div className="reward-stat blue">
+              <Star s={26} c="#fff" />
+              <div className="rs-value">+30</div>
+              <div className="rs-label">XP ganada</div>
+            </div>
+            <div className="reward-stat orange">
+              <Flame s={26} />
+              <div className="rs-value">8</div>
+              <div className="rs-label">Días de racha</div>
+            </div>
+            <div className="reward-stat cream">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="#2E4756" strokeWidth="2.2" />
+                <circle cx="12" cy="12" r="4.5" stroke="#2E4756" strokeWidth="2.2" />
+                <circle cx="12" cy="12" r="1.4" fill="#2E4756" />
+              </svg>
+              <div className="rs-value" style={{ color: '#2E4756' }}>90%</div>
+              <div className="rs-label" style={{ color: '#7c7156' }}>Precisión</div>
+            </div>
+          </div>
+
+          <div className="reward-level">
+            <div className="rl-head"><span style={{ color: '#0A0A0A' }}>Nivel 5</span><span style={{ color: '#8a8273' }}>Nivel 6</span></div>
+            <div className="rl-track"><div className="rl-fill" style={{ width: '74%' }} /></div>
+            <div className="rl-foot">740 / 1000 XP · faltan 260 para subir</div>
+          </div>
+
+          <button className="btn block" style={{ maxWidth: 580, marginTop: 18 }} onClick={onContinue}>CONTINUAR</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   05 · Panel docente
+   ============================================================ */
+function Panel({
+  onNav,
+  onOpenStudent,
+  onLogout,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onOpenStudent: (s: Student) => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="screen" data-set="panel">
+      <DecoLayer set="panel" />
+      <div className="screen-inner" style={{ padding: '26px 40px 40px' }}>
+        <TopNav
+          items={['Panel', 'Alumnos', 'Contenido']}
+          active="Panel"
+          onSelect={(it) => {
+            if (it === 'Alumnos') onNav('alumnos');
+            else if (it === 'Contenido') onNav('contenido');
+            else onNav('panel');
+          }}
+          right={
+            <>
+              <div className="search-pill">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#b3ab95" strokeWidth="2.2" /><path d="M20 20l-3.5-3.5" stroke="#b3ab95" strokeWidth="2.2" strokeLinecap="round" /></svg>
+                Buscar alumno
+              </div>
+              <button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>
+            </>
+          }
+        />
+
+        <div className="eyebrow" style={{ marginTop: 18 }}>3°B · Matemática</div>
+        <div className="headline small">Tu clase, de un vistazo</div>
+
+        <div className="kpi-row">
+          <div className="kpi-card"><div className="kpi-label">Alumnos activos</div><div className="kpi-value">28<span>/30</span></div></div>
+          <div className="kpi-card"><div className="kpi-label">Progreso promedio</div><div className="kpi-value" style={{ color: '#00A6ED' }}>{avgProg}%</div></div>
+          <div className="kpi-card"><div className="kpi-label">Necesitan ayuda</div><div className="kpi-value" style={{ color: '#E54B4B' }}>{riskCount}</div></div>
+          <div className="kpi-card"><div className="kpi-label">Racha de la clase</div><div className="kpi-value" style={{ color: '#FF5E00' }}>12 <span>días</span></div></div>
+        </div>
+
+        <div className="alerts-card">
+          <div className="alerts-head">
+            <div className="ai-orb sm"><Icon name="Group4" width={22} height={16} /></div>
+            <span>La IA detectó alumnos que necesitan ayuda</span>
+          </div>
+          <div className="alerts-row">
+            {alerts.map((a) => {
+              const s = demoStudents.find((x) => x.id === a.id)!;
+              return (
+                <div className="alert-card" key={a.id}>
+                  <div className="alert-av"><img src={a.av} alt="" /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span className="dot" style={{ background: a.dot }} />
+                      <span className="alert-name">{a.name}</span>
+                    </div>
+                    <div className="alert-reason">{a.reason}</div>
+                  </div>
+                  <button className="alert-btn" onClick={() => onOpenStudent(s)}>Ver</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="students-head">
+          <span className="students-title">Mis alumnos (30)</span>
+          <div style={{ flex: 1 }} />
+          <div className="legend">
+            <span><span className="dot" style={{ background: '#3FB97A' }} />{okCount} al día</span>
+            <span><span className="dot" style={{ background: '#F4B53F' }} />{warnCount} a observar</span>
+            <span><span className="dot" style={{ background: '#E54B4B' }} />{riskCount} en riesgo</span>
+          </div>
+        </div>
+
+        <div className="students-grid">
+          {demoStudents.map((s) => (
+            <button className="student-card" key={s.id} onClick={() => onOpenStudent(s)}>
+              <span className="student-dot" style={{ background: s.dot }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div className="student-av"><img src={s.av} alt="" /></div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="student-name">{s.name}</div>
+                  <div className="student-unit">{s.unit}</div>
+                </div>
+              </div>
+              <div className="student-track"><div className="student-fill" style={{ width: s.barWidth }} /></div>
+              <div className="student-foot"><span>Progreso</span><span className="student-pct">{s.prog}%</span></div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   06 · Detalle de alumno — docente
+   ============================================================ */
+function Detalle({
+  student,
+  onBack,
+  onNav,
+  onLogout,
+}: {
+  student: Student;
+  onBack: () => void;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="screen" data-set="detalle">
+      <DecoLayer set="detalle" />
+      <div className="screen-inner" style={{ padding: '26px 40px 40px' }}>
+        <TopNav
+          items={['Panel', 'Alumnos', 'Contenido']}
+          active="Alumnos"
+          onSelect={(it) => {
+            if (it === 'Panel') onNav('panel');
+            else if (it === 'Contenido') onNav('contenido');
+            else onNav('alumnos');
+          }}
+          right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
+        />
+
+        <div className="breadcrumb">
+          <button className="crumb-link" onClick={onBack}>Alumnos</button> / <span className="crumb-current">{student.name}</span>
+        </div>
+
+        <div className="detail-header">
+          <div className="detail-av"><img src={student.av} alt="" /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span className="detail-name">{student.name}</span>
+              <span className="tag blue">Nivel 5</span>
+              <span className="tag orange">Liga Oro</span>
+            </div>
+            <div className="detail-sub">Activo hace 12 min · 3°B Matemática</div>
+          </div>
+          <div className="detail-stats">
+            <div><div className="ds-value" style={{ color: '#FF5E00' }}>8</div><div className="ds-label">Racha</div></div>
+            <div><div className="ds-value" style={{ color: '#00A6ED' }}>1 240</div><div className="ds-label">XP</div></div>
+            <div><div className="ds-value" style={{ color: '#E54B4B' }}>{100 - student.prog}%</div><div className="ds-label">Precisión</div></div>
+            <div><div className="ds-value" style={{ color: '#0A0A0A' }}>{student.prog}%</div><div className="ds-label">Unidad 2</div></div>
+          </div>
+        </div>
+
+        <div className="detail-cols">
+          {/* left */}
+          <div className="detail-left">
+            <div className="panel-box">
+              <div className="box-title">Recorrido de aprendizaje</div>
+              <div className="box-sub">Unidad 2 · Ecuaciones lineales</div>
+              <div className="journey">
+                {journeySteps.map((step, i) => (
+                  <Step key={step.name} step={step} last={i === journeySteps.length - 1} nextStuck={journeySteps[i + 1]?.state} />
+                ))}
+              </div>
+            </div>
+
+            <div className="panel-box">
+              <div className="box-title" style={{ marginBottom: 6 }}>Actividad reciente</div>
+              {activity.map((ev) => (
+                <div className="activity-row" key={ev.txt}>
+                  <span className="dot" style={{ background: ev.col, marginTop: 4 }} />
+                  <div style={{ flex: 1 }}><div className="activity-txt">{ev.txt}</div></div>
+                  <div className="activity-time">{ev.t}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* right */}
+          <div className="detail-right">
+            <div className="panel-box">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Icon name="Group13" width={22} height={12} style={{ color: '#E54B4B' }} />
+                <span className="box-title">Puntos de fricción (IA)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginTop: 14 }}>
+                {friction.map((f) => (
+                  <div key={f.skill} className="friction" style={{ background: f.bg }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span className="friction-skill">{f.skill}</span>
+                      <span style={{ fontWeight: 700, fontSize: 10, color: f.col }}>{f.errors}</span>
+                    </div>
+                    <div className="friction-detail">{f.detail}</div>
+                    <div style={{ fontWeight: 700, fontSize: 10, letterSpacing: '.04em', color: f.col, marginTop: 6 }}>{f.sev}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rail-card navy">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="ai-orb"><Icon name="Group4" width={26} height={18} /></div>
+                <span className="rail-ai-title">Recomendación de la IA</span>
+              </div>
+              <div className="rail-ai-body">
+                Asigná a {firstNameOf(student.name)} <b>2 micro-ejercicios de despeje guiado</b> antes de avanzar. Suele resolver el lado izquierdo y olvidar replicarlo en el derecho.
+              </div>
+              <button className="btn block" style={{ marginTop: 14 }}>Asignar refuerzo</button>
+            </div>
+
+            <div className="panel-box">
+              <div className="box-title" style={{ marginBottom: 12 }}>Dominio por habilidad</div>
+              {masterySkills.map((sk) => (
+                <div key={sk.name} style={{ marginBottom: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span className="mastery-name">{sk.name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: sk.col }}>{sk.label}</span>
+                  </div>
+                  <div className="mastery-track"><div className="mastery-fill" style={{ width: sk.pct, background: sk.col }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Step({
+  step,
+  last,
+  nextStuck,
+}: {
+  step: { name: string; state: 'done' | 'stuck' | 'locked' };
+  last: boolean;
+  nextStuck?: 'done' | 'stuck' | 'locked';
+}) {
+  const connectorColor = step.state === 'done' ? (nextStuck === 'stuck' ? '#E54B4B' : '#00A6ED') : '#e6dcc4';
   return (
     <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>¡Hola, {firstName}!</h1>
-          <div className="sub">Esto es lo que tenés para hoy.</div>
-        </div>
-        <div className="stat-pill">
-          <Flame /> 7
-        </div>
-        <div className="stat-pill">
-          <Star /> 1 240
-        </div>
-      </div>
-
-      <div className="row mt-22" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 22 }}>
-        {/* perfil de aprendizaje */}
-        <div className="card" style={{ flex: '1 1 320px', minWidth: 280 }}>
-          <h2 className="card-title">Tu perfil de aprendizaje</h2>
-          {profile ? (
-            <>
-              <p className="card-sub">Foto del momento, no etiqueta fija.</p>
-              <div className="row mt-16" style={{ alignItems: 'center', gap: 10 }}>
-                <span className="tag blue">{profile.arquetipo}</span>
-                {profile.arquetipoSecundario && <span className="tag orange">2º · {profile.arquetipoSecundario}</span>}
-              </div>
-              <p className="mt-16" style={{ fontWeight: 600, color: '#5a5346', lineHeight: 1.5, fontSize: 14 }}>
-                {profile.arquetipoDescripcion}
-              </p>
-              <div className="btn-row">
-                <button className="btn blue" onClick={onOpenProfile}>
-                  Ver perfil completo
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="card-sub">Todavía no completaste tu cuestionario inicial.</p>
-              <p className="mt-16" style={{ fontWeight: 600, color: '#5a5346', lineHeight: 1.5, fontSize: 14 }}>
-                Respondé una sola vez para que la plataforma calibre tu senda según cómo aprendés.
-              </p>
-              <div className="btn-row">
-                <button className="btn" onClick={onOpenProfile}>
-                  Empezar cuestionario
-                </button>
-              </div>
-            </>
+      <div className="step">
+        <div className={`step-circle ${step.state}`}>
+          {step.state === 'done' && <Check s={22} c="#fff" w={3} />}
+          {step.state === 'stuck' && (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16.5v.5" stroke="#E54B4B" strokeWidth="2.6" strokeLinecap="round" /><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke="#E54B4B" strokeWidth="2" /></svg>
+          )}
+          {step.state === 'locked' && (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 11V8a6 6 0 0 1 12 0v3" stroke="#b3ab95" strokeWidth="2.4" strokeLinecap="round" /><rect x="4.5" y="11" width="15" height="9" rx="2.5" fill="#b3ab95" /></svg>
           )}
         </div>
-
-        {/* compañero IA */}
-        <div className="ai-banner" style={{ flex: '1 1 320px', minWidth: 280 }}>
-          <div className="head">
-            <div className="ai-orb spin">
-              <Icon name="Group4" size={28} />
-            </div>
-            <h3>Tu compañero IA</h3>
-          </div>
-          <p>
-            Cuando completes tu perfil, voy a <b>calibrar tu senda</b> y avisarte qué reforzar antes de cada desafío.
-            Aprendé a tu ritmo: yo me adapto a vos.
-          </p>
-        </div>
+        <div className={`step-name ${step.state}`}>{step.name}</div>
       </div>
-
-      {/* tareas */}
-      <div className="card mt-22">
-        <h2 className="card-title">Próximos pasos</h2>
-        <div className="list mt-16">
-          <div className="list-row">
-            <div className="ico" style={{ background: profile ? '#00A6ED' : '#FF5E00' }}>
-              <Icon name={profile ? 'Librito' : 'Group13'} size={24} color="#fff" />
-            </div>
-            <div className="grow">
-              <div className="t1">{profile ? 'Revisá tus dimensiones' : 'Completá tu perfil de aprendizaje'}</div>
-              <div className="t2">{profile ? 'Perfil · listo' : 'Cuestionario · 11 preguntas'}</div>
-            </div>
-            <Chevron />
-          </div>
-          <div className="list-row">
-            <div className="ico" style={{ background: '#3FB97A' }}>
-              <Icon name="Vector" size={22} color="#fff" />
-            </div>
-            <div className="grow">
-              <div className="t1">Mantené tu racha</div>
-              <div className="t2">7 días seguidos · +XP cada día</div>
-            </div>
-            <Chevron />
-          </div>
-        </div>
-      </div>
+      {!last && <div className="step-connector" style={{ background: connectorColor }} />}
     </>
   );
 }
 
 /* ============================================================
-   Cuestionario de perfil
+   Perfil — shell + formulario + resultado
    ============================================================ */
+function ProfileShell({
+  user,
+  active,
+  onNav,
+  onLogout,
+  children,
+}: {
+  user: User;
+  active: string;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  children: React.ReactNode;
+}) {
+  void user;
+  return (
+    <div className="screen" data-set="inicio">
+      <div className="screen-inner">
+        <TopNav
+          items={['Inicio', 'Materiales', 'Docentes', 'Perfil']}
+          active={active}
+          onSelect={(it) => {
+            if (it === 'Inicio') onNav('inicio');
+            else if (it === 'Perfil') onNav('profileResult');
+            else if (it === 'Materiales') onNav('materiales');
+            else if (it === 'Docentes') onNav('misDocentes');
+          }}
+          right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
+        />
+        <div className="profile-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyProfile({ onStart }: { onStart: () => void }) {
+  return (
+    <>
+      <div className="headline small">Tu perfil de aprendizaje</div>
+      <div className="headline-sub">Todavía no completaste tu cuestionario inicial.</div>
+      <div className="card mt-22" style={{ maxWidth: 620 }}>
+        <p style={{ fontWeight: 600, color: '#5a5346', lineHeight: 1.5, fontSize: 15, margin: 0 }}>
+          Respondé una sola vez para que la plataforma calibre tu senda según cómo aprendés.
+        </p>
+        <div className="btn-row"><button className="btn" onClick={onStart}>Empezar cuestionario</button></div>
+      </div>
+    </>
+  );
+}
+
 function ProfileForm({ onSaved }: { onSaved: (profile: Profile) => void }) {
   const [answers, setAnswers] = useState<Record<string, number>>(
     questions.reduce((acc, item) => ({ ...acc, [item.key]: 3 }), {}),
@@ -619,12 +1236,8 @@ function ProfileForm({ onSaved }: { onSaved: (profile: Profile) => void }) {
 
   return (
     <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Perfil de aprendizaje</h1>
-          <div className="sub">Contestá una sola vez. Tus respuestas marcan tu perfil del momento.</div>
-        </div>
-      </div>
+      <div className="headline small">Perfil de aprendizaje</div>
+      <div className="headline-sub">Contestá una sola vez. Tus respuestas marcan tu perfil del momento.</div>
 
       <div className="card mt-22" style={{ maxWidth: 720 }}>
         <div className="field-label">¿Qué tan de acuerdo estás? (1 = nada · 5 = mucho)</div>
@@ -655,9 +1268,7 @@ function ProfileForm({ onSaved }: { onSaved: (profile: Profile) => void }) {
                 type="button"
                 className={formato.includes(option) ? 'selected' : ''}
                 onClick={() =>
-                  setFormato((prev) =>
-                    prev.includes(option) ? prev.filter((item) => item !== option) : [...prev, option],
-                  )
+                  setFormato((prev) => (prev.includes(option) ? prev.filter((i) => i !== option) : [...prev, option]))
                 }
               >
                 {option}
@@ -670,12 +1281,7 @@ function ProfileForm({ onSaved }: { onSaved: (profile: Profile) => void }) {
           <label>Forma de trabajo</label>
           <div className="tags-row">
             {workModes.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={trabajo === option ? 'selected' : ''}
-                onClick={() => setTrabajo(option)}
-              >
+              <button key={option} type="button" className={trabajo === option ? 'selected' : ''} onClick={() => setTrabajo(option)}>
                 {option}
               </button>
             ))}
@@ -690,59 +1296,32 @@ function ProfileForm({ onSaved }: { onSaved: (profile: Profile) => void }) {
         {error && <div className="banner error" style={{ marginBottom: 14 }}>{error}</div>}
 
         <div className="btn-row">
-          <button className="btn" onClick={handleSubmit} disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar perfil'}
-          </button>
+          <button className="btn" onClick={handleSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar perfil'}</button>
         </div>
       </div>
     </>
   );
 }
 
-/* ============================================================
-   Resultado del perfil
-   ============================================================ */
 function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => void }) {
   return (
     <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Tu perfil actual</h1>
-          <div className="sub">Es una foto del momento; se ajusta con feedback real más adelante.</div>
-        </div>
-      </div>
+      <div className="headline small">Tu perfil actual</div>
+      <div className="headline-sub">Es una foto del momento; se ajusta con feedback real más adelante.</div>
 
       <div className="row mt-22" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 22 }}>
         <div className="card" style={{ flex: '1 1 360px', minWidth: 300 }}>
           <h2 className="card-title">Resumen</h2>
           <div className="summary-box mt-16">
-            <p>
-              <strong>Arquetipo:</strong> {profile.arquetipo}
-            </p>
+            <p><strong>Arquetipo:</strong> {profile.arquetipo}</p>
             <p>{profile.arquetipoDescripcion}</p>
-            {profile.arquetipoSecundario && (
-              <p>
-                <strong>Segundo posible arquetipo:</strong> {profile.arquetipoSecundario}
-              </p>
-            )}
-            <p>
-              <strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes?.join(', ') || '—'}
-            </p>
-            <p>
-              <strong>Formato preferido:</strong> {profile.formato?.join(', ') || 'Sin selección'}
-            </p>
-            <p>
-              <strong>Forma de trabajo:</strong> {profile.trabajo}
-            </p>
-            <p>
-              <strong>Intereses:</strong> {profile.intereses || 'No definidos'}
-            </p>
+            {profile.arquetipoSecundario && <p><strong>Segundo posible arquetipo:</strong> {profile.arquetipoSecundario}</p>}
+            <p><strong>Dimensiones más extremas:</strong> {profile.dimensionesDominantes?.join(', ') || '—'}</p>
+            <p><strong>Formato preferido:</strong> {profile.formato?.join(', ') || 'Sin selección'}</p>
+            <p><strong>Forma de trabajo:</strong> {profile.trabajo}</p>
+            <p><strong>Intereses:</strong> {profile.intereses || 'No definidos'}</p>
           </div>
-          <div className="btn-row">
-            <button className="btn blue" onClick={onEdit}>
-              Actualizar perfil
-            </button>
-          </div>
+          <div className="btn-row"><button className="btn blue" onClick={onEdit}>Actualizar perfil</button></div>
         </div>
 
         <div className="card" style={{ flex: '1 1 360px', minWidth: 300 }}>
@@ -751,10 +1330,8 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
           <div className="bars mt-16">
             {Object.entries(profile.dims).map(([key, value]) => (
               <div className="bar-row" key={key}>
-                <span>{key}</span>
-                <div className="bar-track">
-                  <div className="bar-fill" style={{ width: `${((value - 1) / 4) * 100}%` }} />
-                </div>
+                <span title={key}>{DIM_LABELS[key] ?? key}</span>
+                <div className="bar-track"><div className="bar-fill" style={{ width: `${((value - 1) / 4) * 100}%` }} /></div>
                 <span>{value.toFixed(1)}</span>
               </div>
             ))}
@@ -766,776 +1343,806 @@ function ProfileResult({ profile, onEdit }: { profile: Profile; onEdit: () => vo
 }
 
 /* ============================================================
-   Panel docente
+   Helpers compartidos para las nuevas vistas
    ============================================================ */
-function TeacherPanel({ user, onGoToStudents }: { user: User; onGoToStudents?: () => void }) {
-  return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Panel docente</h1>
-          <div className="sub">Hola, {user.name}. Acá vas a seguir el progreso de tu clase.</div>
-        </div>
-      </div>
-
-      <div className="ai-banner mt-22">
-        <div className="head">
-          <div className="ai-orb">
-            <Icon name="Group4" size={22} />
-          </div>
-          <h3>La IA resume cómo viene tu clase</h3>
-        </div>
-        <p>
-          A medida que tus alumnos completen su perfil de aprendizaje y resuelvan actividades, vas a ver acá quiénes
-          necesitan ayuda y en qué se traban. Por ahora, la plataforma guarda los perfiles de aprendizaje de cada alumno.
-        </p>
-      </div>
-
-      <div className="kpis mt-22">
-        <div className="kpi">
-          <div className="label">Alumnos activos</div>
-          <div className="value" style={{ color: 'var(--ink)' }}>
-            —<small>/30</small>
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="label">Progreso promedio</div>
-          <div className="value" style={{ color: 'var(--blue)' }}>
-            —%
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="label">Necesitan ayuda</div>
-          <div className="value" style={{ color: 'var(--red)' }}>
-            —
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="label">Racha de la clase</div>
-          <div className="value" style={{ color: 'var(--orange)' }}>
-            —
-          </div>
-        </div>
-      </div>
-
-      <div className="card mt-22">
-        <h2 className="card-title">
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <PeopleI s={20} /> Mis alumnos
-          </span>
-        </h2>
-        <p className="card-sub">Todavía no hay datos de progreso para mostrar.</p>
-        <p className="mt-16" style={{ fontWeight: 600, color: '#5a5346', lineHeight: 1.5, fontSize: 14 }}>
-          Compartí el curso con tus alumnos para que completen su perfil. Cuando lo hagan, vas a ver el semáforo de
-          estado y las alertas de la IA en esta pantalla.
-        </p>
-        {onGoToStudents && (
-          <div className="btn-row">
-            <button className="btn" onClick={onGoToStudents}>
-              Ver solicitudes de alumnos
-            </button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-/* ============================================================
-   Mis docentes (alumno)
-   ============================================================ */
-function StudentTeachers({
+function ScreenShell({
   user,
-  onRequestTeacher,
-  error,
-  setError,
+  navItems,
+  active,
+  onNav,
+  onLogout,
+  children,
 }: {
   user: User;
-  onRequestTeacher: () => void;
-  error: string | null;
-  setError: (e: string | null) => void;
+  navItems: string[];
+  active: string;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  children: React.ReactNode;
 }) {
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTeachers();
-  }, []);
-
-  async function loadTeachers() {
-    try {
-      setLoading(true);
-      const data = await api('/student/teachers');
-      setTeachers(data.teachers);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar docentes');
-    } finally {
-      setLoading(false);
+  void user;
+  const isDocente = user.role === 'docente';
+  function handleSelect(it: string) {
+    if (isDocente) {
+      if (it === 'Panel') onNav('panel');
+      else if (it === 'Alumnos') onNav('alumnos');
+      else if (it === 'Contenido') onNav('contenido');
+    } else {
+      if (it === 'Inicio') onNav('inicio');
+      else if (it === 'Materiales') onNav('materiales');
+      else if (it === 'Docentes') onNav('misDocentes');
+      else if (it === 'Perfil') onNav('profileResult');
     }
   }
-
   return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Mis docentes</h1>
-          <div className="sub">Los docentes que te están guiando en tu aprendizaje.</div>
-        </div>
-        <button className="btn" onClick={onRequestTeacher}>
-          + Agregar docente
-        </button>
+    <div className="screen" data-set="inicio">
+      <div className="screen-inner">
+        <TopNav
+          items={navItems}
+          active={active}
+          onSelect={handleSelect}
+          right={<button className="btn ghost" style={{ padding: '8px 16px' }} onClick={onLogout}>Salir</button>}
+        />
+        {children}
       </div>
-
-      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
-
-      {!loading && teachers.length === 0 && (
-        <div className="card mt-22">
-          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
-            Todavía no tenés docentes asignados. ¡Solicita a uno para empezar!
-          </p>
-        </div>
-      )}
-
-      {!loading && teachers.length > 0 && (
-        <div className="card-grid mt-22">
-          {teachers.map((st) => (
-            <div key={st.id} className="card" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <div className="avatar" style={{ width: 40, height: 40 }}>
-                  {(st.teacher.name[0] || '?').toUpperCase()}
-                </div>
-                <div>
-                  <div className="name">{st.teacher.name}</div>
-                  <div className="role" style={{ fontSize: 12, color: '#999' }}>
-                    {st.status === 'pending' ? '⏳ Pendiente' : st.status === 'active' ? '✓ Activo' : 'Completado'}
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
-                {st.teacher.email}
-              </div>
-              <div style={{ fontSize: 12, color: '#999' }}>
-                Conectado desde {new Date(st.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
 /* ============================================================
-   Solicitar docente (alumno)
+   Docente · Alumnos (solicitudes reales)
    ============================================================ */
-function StudentRequestTeacher({
+function TeacherAlumnos({
   user,
-  onBack,
-  error,
+  onNav,
+  onLogout,
   setError,
 }: {
   user: User;
-  onBack: () => void;
-  error: string | null;
-  setError: (e: string | null) => void;
-}) {
-  const [available, setAvailable] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTeachers();
-  }, []);
-
-  async function loadTeachers() {
-    try {
-      setLoading(true);
-      const data = await api('/student/available-teachers');
-      setAvailable(data.teachers);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar docentes');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function requestTeacher(teacherId: number) {
-    try {
-      setLoading(true);
-      await api('/student/request-teacher', {
-        method: 'POST',
-        body: JSON.stringify({ teacherId }),
-      });
-      setError(null);
-      loadTeachers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al solicitar');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Agregar docente</h1>
-          <div className="sub">Selecciona un docente para solicitar que te guíe.</div>
-        </div>
-        <button className="btn ghost" onClick={onBack}>
-          ← Atrás
-        </button>
-      </div>
-
-      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando docentes disponibles...</div>}
-
-      {!loading && available.length === 0 && (
-        <div className="card mt-22">
-          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
-            No hay docentes disponibles en este momento.
-          </p>
-        </div>
-      )}
-
-      {!loading && available.length > 0 && (
-        <div className="card-grid mt-22">
-          {available.map((teacher) => (
-            <div key={teacher.id} className="card" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <div className="avatar" style={{ width: 40, height: 40 }}>
-                  {(teacher.name[0] || '?').toUpperCase()}
-                </div>
-                <div>
-                  <div className="name">{teacher.name}</div>
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
-                {teacher.email}
-              </div>
-              {teacher.course && (
-                <div style={{ fontSize: 12, color: '#999', marginBottom: 12 }}>
-                  Curso: {teacher.course}
-                </div>
-              )}
-              <button
-                className="btn"
-                style={{ width: '100%', marginTop: 12 }}
-                onClick={() => requestTeacher(teacher.id)}
-              >
-                Solicitar
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ============================================================
-   Mis alumnos (docente)
-   ============================================================ */
-function TeacherStudents({
-  user,
-  error,
-  setError,
-}: {
-  user: User;
-  error: string | null;
+  onNav: (v: View) => void;
+  onLogout: () => void;
   setError: (e: string | null) => void;
 }) {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadStudents();
-  }, []);
-
-  async function loadStudents() {
+  async function load() {
     try {
       setLoading(true);
-      const data = await api('/teacher/students');
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/teacher/students`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       setStudents(data.students);
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar alumnos');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cargar');
     } finally {
       setLoading(false);
     }
   }
 
-  async function updateStatus(id: number, status: 'active' | 'rejected' | 'completed') {
+  async function updateStatus(id: number, status: 'active' | 'rejected') {
     try {
-      await api(`/teacher/students/${id}/status`, {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/teacher/students/${id}/status`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status }),
       });
-      loadStudents();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al actualizar');
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
     }
   }
 
+  async function unlinkStudent(id: number, name: string) {
+    if (!window.confirm(`¿Desvincular a ${name}? Podrá volver a solicitarte más adelante.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/teacher/students/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const pending = students.filter((s) => s.status === 'pending');
+  const active = students.filter((s) => s.status === 'active');
+
   return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Mis alumnos</h1>
-          <div className="sub">Gestiona las solicitudes de tus estudiantes.</div>
-        </div>
-      </div>
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Alumnos" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Mis alumnos</div>
+      <div className="headline-sub">Gestioná las solicitudes y seguí el vínculo con tus estudiantes.</div>
 
-      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando alumnos...</div>}
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
 
-      {!loading && students.length === 0 && (
-        <div className="card mt-22">
-          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
-            No hay solicitudes de alumnos aún. Comparte tu código con ellos para que se vinculen.
-          </p>
-        </div>
-      )}
-
-      {!loading && students.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 22 }}>
-          {students.map((st) => (
-            <div key={st.id} className="card" style={{ padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <div className="avatar" style={{ width: 40, height: 40 }}>
-                  {(st.student.name[0] || '?').toUpperCase()}
+      {!loading && pending.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Solicitudes pendientes ({pending.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {pending.map((st) => (
+              <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {st.student.name[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div className="name">{st.student.name}</div>
-                  <div className="role" style={{ fontSize: 12, color: '#999' }}>
-                    {st.student.course ? `${st.student.course}` : 'Sin curso'}
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{st.student.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{st.student.email} · {st.student.course || 'Sin curso'}</div>
+                </div>
+                <button className="btn blue" style={{ padding: '8px 16px', fontSize: 14 }} onClick={() => updateStatus(st.id, 'active')}>Aceptar</button>
+                <button className="btn ghost" style={{ padding: '8px 16px', fontSize: 14 }} onClick={() => updateStatus(st.id, 'rejected')}>Rechazar</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && active.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Alumnos activos ({active.length})</div>
+          <div className="students-grid" style={{ marginTop: 16 }}>
+            {active.map((st) => (
+              <div key={st.id} className="student-card" style={{ cursor: 'default' }}>
+                <span className="student-dot" style={{ background: '#3FB97A' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
+                    {st.student.name[0].toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="student-name">{st.student.name}</div>
+                    <div className="student-unit">{st.student.course || st.student.email}</div>
                   </div>
                 </div>
-              </div>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
-                {st.student.email}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                {st.status === 'pending' && (
-                  <>
-                    <button
-                      className="btn"
-                      style={{ flex: 1, fontSize: 12, padding: 8 }}
-                      onClick={() => updateStatus(st.id, 'active')}
-                    >
-                      ✓ Aceptar
-                    </button>
-                    <button
-                      className="btn ghost"
-                      style={{ flex: 1, fontSize: 12, padding: 8 }}
-                      onClick={() => updateStatus(st.id, 'rejected')}
-                    >
-                      ✗ Rechazar
-                    </button>
-                  </>
-                )}
-                {st.status !== 'pending' && (
-                  <div style={{ fontSize: 12, color: '#999', padding: '8px 12px', width: '100%', textAlign: 'center' }}>
-                    {st.status === 'active' ? '✓ Activo' : '✗ Rechazado'}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ============================================================
-   Mis materiales (docente)
-   ============================================================ */
-function TeacherMaterials({
-  user,
-  onCreateMaterial,
-  error,
-  setError,
-}: {
-  user: User;
-  onCreateMaterial: () => void;
-  error: string | null;
-  setError: (e: string | null) => void;
-}) {
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadMaterials();
-  }, []);
-
-  async function loadMaterials() {
-    try {
-      setLoading(true);
-      const data = await api('/material');
-      setMaterials(data.materials || []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar materiales');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Mis materiales</h1>
-          <div className="sub">Gestiona tus contenidos didácticos para los alumnos.</div>
-        </div>
-        <button className="btn" onClick={onCreateMaterial}>
-          + Crear material
-        </button>
-      </div>
-
-      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
-
-      {!loading && materials.length === 0 && (
-        <div className="card mt-22">
-          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
-            Todavía no creaste materiales. ¡Crea uno para empezar!
-          </p>
-        </div>
-      )}
-
-      {!loading && materials.length > 0 && (
-        <div className="card-grid mt-22">
-          {materials.map((material) => (
-            <div key={material.id} className="card material-card">
-              <div className="material-card-header">
-                <h3 className="material-card-title">{material.title}</h3>
-                <span className="material-badge subject">{material.subject || 'Sin materia'}</span>
-              </div>
-              <div className="material-badges">
-                <span className="material-badge level">{material.level}</span>
-                <span className="material-badge">{new Date(material.createdAt).toLocaleDateString()}</span>
-              </div>
-              <p className="material-preview">{material.content.substring(0, 180)}...</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ============================================================
-   Crear material (docente)
-   ============================================================ */
-function TeacherMaterialForm({
-  user,
-  onBack,
-  onSaved,
-  error,
-  setError,
-}: {
-  user: User;
-  onBack: () => void;
-  onSaved: () => void;
-  error: string | null;
-  setError: (e: string | null) => void;
-}) {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [subject, setSubject] = useState('');
-  const [level, setLevel] = useState('Secundaria');
-  const [saving, setSaving] = useState(false);
-
-  async function handleSubmit() {
-    if (!title || !content) {
-      setError('Título y contenido son requeridos');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await api('/material', {
-        method: 'POST',
-        body: JSON.stringify({ title, content, subject, level }),
-      });
-      setError(null);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Crear material</h1>
-          <div className="sub">Ingresa el contenido que los alumnos adaptarán según su estilo de aprendizaje.</div>
-        </div>
-        <button className="btn ghost" onClick={onBack}>
-          ← Atrás
-        </button>
-      </div>
-
-      <div className="card mt-22" style={{ maxWidth: 720 }}>
-        <label className="field">
-          <span>Título</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} type="text" placeholder="Ej: La fotosíntesis" />
-        </label>
-
-        <label className="field">
-          <span>Materia (opcional)</span>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} type="text" placeholder="Ej: Biología" />
-        </label>
-
-        <label className="field">
-          <span>Nivel</span>
-          <select value={level} onChange={(e) => setLevel(e.target.value)}>
-            <option>Primaria</option>
-            <option>Secundaria</option>
-            <option>Universitario</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Contenido</span>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={10}
-            placeholder="Pegá aquí el texto de tu material (puede ser de un PDF, libro, apunte, etc.)"
-          />
-        </label>
-
-        {error && <div className="banner error" style={{ marginBottom: 14 }}>{error}</div>}
-
-        <div className="btn-row">
-          <button className="btn" onClick={handleSubmit} disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar material'}
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ============================================================
-   Materiales disponibles (alumno)
-   ============================================================ */
-function StudentMaterials({
-  user,
-  onSelectMaterial,
-  error,
-  setError,
-}: {
-  user: User;
-  onSelectMaterial: () => void;
-  error: string | null;
-  setError: (e: string | null) => void;
-}) {
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  useEffect(() => {
-    loadMaterials();
-  }, []);
-
-  async function loadMaterials() {
-    try {
-      setLoading(true);
-      const data = await api('/material');
-      setMaterials(data.materials || []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar materiales');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>Materiales de clase</h1>
-          <div className="sub">Adaptá el contenido según tu estilo de aprendizaje.</div>
-        </div>
-      </div>
-
-      {loading && <div style={{ padding: 20, textAlign: 'center' }}>Cargando...</div>}
-
-      {!loading && materials.length === 0 && (
-        <div className="card mt-22">
-          <p style={{ color: '#666', textAlign: 'center', padding: 40 }}>
-            Todavía no hay materiales disponibles. Contactá a tu docente.
-          </p>
-        </div>
-      )}
-
-      {!loading && materials.length > 0 && (
-        <div className="card-grid mt-22">
-          {materials.map((material) => (
-            <div
-              key={material.id}
-              className={`card material-card ${selectedId === material.id ? 'selected' : ''}`}
-              onClick={() => setSelectedId(material.id)}
-            >
-              <div className="material-card-header">
-                <h3 className="material-card-title">{material.title}</h3>
-                <div className="material-badges">
-                  <span className="material-badge subject">{material.subject || 'Sin materia'}</span>
-                  <span className="material-badge level">{material.level}</span>
-                </div>
-              </div>
-              <p className="material-preview">{material.content.substring(0, 180)}...</p>
-              <div className="btn-row" style={{ marginTop: 0 }}>
                 <button
-                  className="btn"
-                  style={{ flex: 1 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    localStorage.setItem('selectedMaterialId', String(material.id));
-                    onSelectMaterial();
-                  }}
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13, marginTop: 10 }}
+                  onClick={() => unlinkStudent(st.id, st.student.name)}
                 >
-                  Ver y adaptar
+                  Desvincular
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && students.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no hay solicitudes. Compartí tu perfil con tus alumnos para que te busquen.
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Docente · Contenido (materiales)
+   ============================================================ */
+function TeacherContenido({
+  user,
+  onNav,
+  onLogout,
+  setError,
+  onCreate,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onCreate: () => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMaterials(data.materials || []);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteMaterial(id: number, title: string) {
+    if (!window.confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al eliminar');
+      }
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Contenido" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 18, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div className="headline small">Mis materiales</div>
+          <div className="headline-sub">Contenidos que tus alumnos pueden adaptar con IA.</div>
+        </div>
+        <button className="btn" onClick={onCreate}>+ Crear material</button>
+      </div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && materials.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no creaste materiales. ¡Creá uno para que tus alumnos puedan adaptarlo!
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 24 }}>
+          {materials.map((m) => (
+            <div key={m.id} className="panel-box" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div className="box-title" style={{ fontSize: 17 }}>{m.title}</div>
+                {m.subject && <span style={{ background: 'var(--orange-soft)', color: 'var(--orange-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>{m.subject}</span>}
+              </div>
+              <span style={{ background: 'var(--blue-soft)', color: 'var(--blue-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', width: 'fit-content' }}>{m.level}</span>
+              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {m.content}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-soft)' }}>{new Date(m.createdAt).toLocaleDateString()}</span>
+                <button
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13, color: 'var(--red)' }}
+                  onClick={() => deleteMaterial(m.id, m.title)}
+                >
+                  Eliminar
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
-    </>
+    </ScreenShell>
   );
 }
 
 /* ============================================================
-   Detalle de material y generación adaptada (alumno)
+   Docente · Crear material
    ============================================================ */
-function StudentMaterialDetail({
+function TeacherContenidoForm({
   user,
+  onNav,
+  onLogout,
+  setError,
+  onSaved,
   onBack,
-  error,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onSaved: () => void;
+  onBack: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [subject, setSubject] = useState('');
+  const level = 'Secundaria'; // Nivel fijo: todo el material es de Secundaria.
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    if (!title || !content) { setLocalError('Título y contenido son requeridos'); return; }
+    setSaving(true);
+    setLocalError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, content, subject, level }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setError(null);
+      onSaved();
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ScreenShell user={user} navItems={['Panel', 'Alumnos', 'Contenido']} active="Contenido" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+        <button className="btn ghost" style={{ padding: '8px 14px' }} onClick={onBack}>← Volver</button>
+        <div className="headline small">Crear material</div>
+      </div>
+      <div className="headline-sub">Pegá el contenido para que tus alumnos lo adapten con IA.</div>
+
+      <div className="panel-box" style={{ marginTop: 24, maxWidth: 720 }}>
+        <label className="field"><span>Título</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: La fotosíntesis" />
+        </label>
+        <label className="field"><span>Materia (opcional)</span>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Biología" />
+        </label>
+        <label className="field"><span>Contenido</span>
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={10} placeholder="Pegá aquí el texto del material…" />
+        </label>
+        {localError && <div className="banner error" style={{ marginBottom: 14 }}>{localError}</div>}
+        <div className="btn-row">
+          <button className="btn" onClick={handleSubmit} disabled={saving}>{saving ? 'Guardando…' : 'Guardar material'}</button>
+        </div>
+      </div>
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Mis docentes
+   ============================================================ */
+function StudentDocentes({
+  user,
+  onNav,
+  onLogout,
   setError,
 }: {
   user: User;
-  onBack: () => void;
-  error: string | null;
+  onNav: (v: View) => void;
+  onLogout: () => void;
   setError: (e: string | null) => void;
 }) {
-  const materialId = parseInt(localStorage.getItem('selectedMaterialId') || '0');
-  const [material, setMaterial] = useState<any | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState<'resumen' | 'explicacion' | 'ejercicios' | 'ejemplos' | 'esquema' | 'audio'>('resumen');
-  const [adaptedContent, setAdaptedContent] = useState<string | null>(null);
+  const [myTeachers, setMyTeachers] = useState<any[]>([]);
+  const [available, setAvailable] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [requesting, setRequesting] = useState(false);
 
-  const formats = [
-    { id: 'resumen', label: '📋 Resumen', desc: 'Puntos clave sintetizados' },
-    { id: 'explicacion', label: '📖 Explicación', desc: 'Explicado de forma sencilla' },
-    { id: 'ejercicios', label: '✏️ Ejercicios', desc: 'Preguntas y problemas' },
-    { id: 'ejemplos', label: '🌍 Ejemplos', desc: 'Situaciones de la vida real' },
-    { id: 'esquema', label: '🧠 Esquema', desc: 'Mapa conceptual' },
-    { id: 'audio', label: '🎧 Audio', desc: 'Para escuchar' },
-  ];
-
-  useEffect(() => {
-    loadMaterial();
-  }, []);
-
-  async function loadMaterial() {
+  async function load() {
     try {
       setLoading(true);
-      const data = await api(`/material/${materialId}`);
-      setMaterial(data.material);
+      const token = localStorage.getItem('authToken');
+      const [myRes, availRes] = await Promise.all([
+        fetch(`${getApiBase()}/student/teachers`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${getApiBase()}/student/available-teachers`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const [myData, availData] = await Promise.all([myRes.json(), availRes.json()]);
+      setMyTeachers(myData.teachers || []);
+      setAvailable(availData.teachers || []);
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar material');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);
     }
   }
 
-  async function generateAdapted() {
-    if (!material) return;
-    setGenerating(true);
+  async function requestTeacher(teacherId: number) {
+    setRequesting(true);
     try {
-      const data = await api(`/material/${materialId}/adapt`, {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/student/request-teacher`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ teacherId }),
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function unlinkTeacher(id: number, name: string) {
+    if (!window.confirm(`¿Desvincularte de ${name}? Vas a dejar de ver sus materiales.`)) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`${getApiBase()}/student/teachers/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const myTeacherIds = new Set(myTeachers.map((t) => t.teacher.id));
+
+  return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Docentes" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Mis docentes</div>
+      <div className="headline-sub">Los docentes que te están guiando en tu aprendizaje.</div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && myTeachers.length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Vinculados</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {myTeachers.map((st) => (
+              <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {st.teacher.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{st.teacher.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{st.teacher.email}</div>
+                </div>
+                <span style={{
+                  fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '4px 12px',
+                  background: st.status === 'active' ? 'var(--green-soft)' : 'var(--orange-soft)',
+                  color: st.status === 'active' ? '#1f7a4d' : 'var(--orange-shadow)',
+                }}>
+                  {st.status === 'active' ? '✓ Activo' : '⏳ Pendiente'}
+                </span>
+                <button
+                  className="btn ghost"
+                  style={{ padding: '6px 12px', fontSize: 13 }}
+                  onClick={() => unlinkTeacher(st.id, st.teacher.name)}
+                >
+                  Desvincular
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && available.filter((t) => !myTeacherIds.has(t.id)).length > 0 && (
+        <div className="panel-box" style={{ marginTop: 24 }}>
+          <div className="box-title">Docentes disponibles</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+            {available.filter((t) => !myTeacherIds.has(t.id)).map((t) => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--cream)', borderRadius: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--blue)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fredoka', fontWeight: 600 }}>
+                  {t.name[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 16 }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.email}</div>
+                </div>
+                <button className="btn blue" style={{ padding: '8px 16px', fontSize: 14 }} disabled={requesting} onClick={() => requestTeacher(t.id)}>
+                  Solicitar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && myTeachers.length === 0 && available.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          No hay docentes disponibles en este momento.
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Materiales
+   ============================================================ */
+function StudentMateriales({
+  user,
+  onNav,
+  onLogout,
+  setError,
+  onSelectMaterial,
+}: {
+  user: User;
+  onNav: (v: View) => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+  onSelectMaterial: (id: number) => void;
+}) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`${getApiBase()}/material`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setMaterials(data.materials || []);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <div className="headline small" style={{ marginTop: 18 }}>Materiales</div>
+      <div className="headline-sub">Adaptá cada contenido a tu estilo de aprendizaje con IA.</div>
+
+      {loading && <p style={{ marginTop: 24, color: 'var(--muted)' }}>Cargando…</p>}
+
+      {!loading && materials.length === 0 && (
+        <div className="panel-box" style={{ marginTop: 24, textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+          Todavía no hay materiales disponibles. Pedile a tu docente que suba contenido.
+        </div>
+      )}
+
+      {!loading && materials.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginTop: 24 }}>
+          {materials.map((m) => (
+            <div key={m.id} className="panel-box" style={{ display: 'flex', flexDirection: 'column', gap: 10, cursor: 'pointer' }} onClick={() => onSelectMaterial(m.id)}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div className="box-title" style={{ fontSize: 17 }}>{m.title}</div>
+                {m.subject && <span style={{ background: 'var(--orange-soft)', color: 'var(--orange-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>{m.subject}</span>}
+              </div>
+              <span style={{ background: 'var(--blue-soft)', color: 'var(--blue-shadow)', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', width: 'fit-content' }}>{m.level}</span>
+              <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {m.content}
+              </p>
+              <button className="btn blue" style={{ marginTop: 8 }} onClick={(e) => { e.stopPropagation(); onSelectMaterial(m.id); }}>
+                Ver y adaptar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </ScreenShell>
+  );
+}
+
+/* ============================================================
+   Alumno · Detalle de material + adaptación IA
+   ============================================================ */
+const ADAPT_FORMATS = [
+  { id: 'resumen', label: '📋 Resumen', desc: 'Puntos clave sintetizados' },
+  { id: 'explicacion', label: '📖 Explicación', desc: 'Lenguaje sencillo' },
+  { id: 'ejercicios', label: '✏️ Ejercicios', desc: 'Preguntas y problemas' },
+  { id: 'ejemplos', label: '🌍 Ejemplos', desc: 'Situaciones reales' },
+  { id: 'esquema', label: '🧠 Esquema', desc: 'Mapa conceptual' },
+  { id: 'audio', label: '🎧 Audio', desc: 'Guion narrado' },
+] as const;
+
+function StudentMaterialDetalle({
+  user,
+  materialId,
+  onNav,
+  onBack,
+  onLogout,
+  setError,
+}: {
+  user: User;
+  materialId: number;
+  onNav: (v: View) => void;
+  onBack: () => void;
+  onLogout: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [material, setMaterial] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedFormat, setSelectedFormat] = useState<string>('resumen');
+  const [adapted, setAdapted] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length, chatLoading]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`${getApiBase()}/material/${materialId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setMaterial(data.material);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [materialId]);
+
+  async function sendChat() {
+    const question = chatInput.trim();
+    if (!question || chatLoading) return;
+    const history = chatMessages.map((m) => ({ role: m.role === 'user' ? 'user' : 'model', text: m.text }));
+    setChatMessages((prev) => [...prev, { role: 'user', text: question }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${materialId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ question, history }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No pude responder ahora. Reintentá en unos segundos.');
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: data.answer }]);
+    } catch (e) {
+      const text = e instanceof Error && e.message ? e.message : 'No pude responder ahora. Reintentá en unos segundos.';
+      setChatMessages((prev) => [...prev, { role: 'assistant', text }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  async function generate() {
+    setGenerating(true);
+    setLocalError(null);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`${getApiBase()}/material/${materialId}/adapt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ format: selectedFormat }),
       });
-      setAdaptedContent(data.content);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al generar contenido');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAdapted(data.content);
+    } catch (e) {
+      setLocalError(e instanceof Error ? e.message : 'Error al generar');
     } finally {
       setGenerating(false);
     }
   }
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>;
-  if (!material) return <div style={{ padding: 40, textAlign: 'center' }}>Material no encontrado</div>;
+  if (loading) return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <p style={{ marginTop: 40, color: 'var(--muted)' }}>Cargando…</p>
+    </ScreenShell>
+  );
+
+  if (!material) return (
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <p style={{ marginTop: 40, color: 'var(--red)' }}>Material no encontrado.</p>
+    </ScreenShell>
+  );
 
   return (
-    <>
-      <div className="page-head">
-        <div className="head-fill">
-          <h1>{material.title}</h1>
-          <div className="sub">{material.subject} · {material.level}</div>
+    <ScreenShell user={user} navItems={['Inicio', 'Materiales', 'Docentes', 'Perfil']} active="Materiales" onNav={onNav} onLogout={onLogout}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+        <button className="btn ghost" style={{ padding: '8px 14px' }} onClick={onBack}>← Volver</button>
+        <div>
+          <div className="headline small">{material.title}</div>
+          <div className="headline-sub">{material.subject} · {material.level}</div>
         </div>
-        <button className="btn ghost" onClick={onBack}>
-          ← Atrás
-        </button>
       </div>
 
-      <div className="material-detail-grid mt-22">
-        <div className="card detail-card">
-          <h2 className="card-title">Contenido original</h2>
-          <div className="material-preview" style={{ maxHeight: 320, overflow: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, marginTop: 24, flexWrap: 'wrap' }}>
+        <div className="panel-box">
+          <div className="box-title">Contenido original</div>
+          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginTop: 12, maxHeight: 320, overflow: 'auto' }}>
             {material.content}
-          </div>
+          </p>
         </div>
 
-        <div className="card detail-card">
-          <h2 className="card-title">Selecciona un formato</h2>
-          <div className="format-grid mt-16">
-            {formats.map((fmt) => (
+        <div className="panel-box">
+          <div className="box-title">Seleccioná un formato</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
+            {ADAPT_FORMATS.map((fmt) => (
               <button
                 key={fmt.id}
-                className={`format-btn ${selectedFormat === fmt.id ? 'selected' : ''}`}
-                onClick={() => setSelectedFormat(fmt.id as any)}
-                type="button"
+                onClick={() => { setSelectedFormat(fmt.id); setAdapted(null); }}
+                style={{
+                  border: `2px solid ${selectedFormat === fmt.id ? 'var(--blue)' : 'var(--line)'}`,
+                  background: selectedFormat === fmt.id ? 'var(--blue-soft)' : '#fff',
+                  borderRadius: 16, padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
+                }}
               >
-                <div style={{ fontWeight: 600 }}>{fmt.label}</div>
-                <div style={{ fontSize: 13, color: '#666' }}>{fmt.desc}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{fmt.desc}</div>
               </button>
             ))}
           </div>
-
-          <button
-            className="btn"
-            style={{ marginTop: 18, width: '100%' }}
-            onClick={generateAdapted}
-            disabled={generating}
-          >
-            {generating ? '⏳ Generando...' : '✨ Generar contenido adaptado'}
+          <button className="btn block" style={{ marginTop: 18 }} onClick={generate} disabled={generating}>
+            {generating ? '⏳ Generando…' : '✨ Generar contenido adaptado'}
           </button>
+          {localError && <div className="banner error" style={{ marginTop: 12 }}>{localError}</div>}
         </div>
       </div>
 
-      {adaptedContent && (
-        <div className="card mt-22">
-          <h2 className="card-title">✨ Contenido adaptado ({selectedFormat})</h2>
-          <div style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', padding: 16, background: '#f9f9f9', borderRadius: 4 }}>
-            {adaptedContent}
-          </div>
+      {adapted && (
+        <div className="panel-box" style={{ marginTop: 22 }}>
+          <div className="box-title">✨ Contenido adaptado</div>
+          {adapted.startsWith('data:audio') ? (
+            <audio controls src={adapted} style={{ width: '100%', marginTop: 12 }} />
+          ) : (
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: '#333', whiteSpace: 'pre-wrap', marginTop: 12 }}>
+              <Typewriter text={adapted} />
+            </p>
+          )}
         </div>
       )}
-    </>
+
+      <div className="panel-box" style={{ marginTop: 22 }}>
+        <div className="box-title">💬 Asistente de estudio</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+          Preguntale lo que quieras sobre este material y te ayuda a entenderlo. Solo responde en base a este tema.
+        </p>
+
+        <div
+          ref={chatScrollRef}
+          style={{
+            marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10,
+            maxHeight: 340, overflowY: 'auto',
+          }}
+        >
+          {chatMessages.length === 0 && !chatLoading && (
+            <div style={{ fontSize: 13, color: 'var(--muted-soft)' }}>
+              Ej: «¿Qué es lo más importante de este tema?» o «Hacéme una pregunta para practicar».
+            </div>
+          )}
+          {chatMessages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '85%',
+                background: m.role === 'user' ? 'var(--blue)' : 'var(--cream)',
+                color: m.role === 'user' ? '#fff' : '#333',
+                borderRadius: 14, padding: '10px 14px', fontSize: 14, lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {m.role === 'assistant' ? <Typewriter text={m.text} /> : m.text}
+            </div>
+          ))}
+          {chatLoading && (
+            <div style={{ alignSelf: 'flex-start', fontSize: 13, color: 'var(--muted)' }}>Pensando…</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendChat(); }}
+            placeholder="Escribí tu pregunta…"
+            disabled={chatLoading}
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 12, border: '2px solid var(--line)', fontSize: 14 }}
+          />
+          <button className="btn blue" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+            Enviar
+          </button>
+        </div>
+      </div>
+    </ScreenShell>
   );
 }
 

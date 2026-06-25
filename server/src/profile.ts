@@ -98,8 +98,29 @@ function getDimensionLabel(value: number) {
   return 'medio';
 }
 
-function computeProfile(inputs: ProfileInputs): ProfileResult {
-  const dims = computeDimensions(inputs);
+// Significado legible de cada dimensión (las claves cortas se mantienen en los datos).
+const DIM_LABELS: Record<string, string> = {
+  MI: 'Inteligencias Múltiples',
+  UTIL: 'Utilidad / Orientación práctica',
+  MC: 'Metacognición',
+  AR: 'Análisis / Reflexión',
+  EST: 'Estrategia',
+  COL: 'Colaboración',
+  ANS: 'Ansiedad / Motivación',
+  AE: 'Autonomía / Autoeficacia',
+};
+
+type ArchetypeDerivation = {
+  arquetipo: string;
+  arquetipoDescripcion: string;
+  arquetipoSecundario?: string;
+  dimensionesDominantes: string[];
+};
+
+// Calcula arquetipo, descripción y dimensiones dominantes a partir SOLO de las
+// dimensiones. Se usa tanto al crear el perfil (POST) como al recuperarlo (GET /me),
+// para que la pantalla muestre lo mismo en ambos casos.
+function deriveArchetype(dims: ProfileDimensions): ArchetypeDerivation {
   const normalized = Object.fromEntries(
     Object.entries(dims).map(([key, value]) => [key, normalize(value)])
   ) as Record<keyof ProfileDimensions, number>;
@@ -121,16 +142,12 @@ function computeProfile(inputs: ProfileInputs): ProfileResult {
     .map(([key, value]) => ({ key, distance: Math.abs(value - 3), value }))
     .sort((a, b) => b.distance - a.distance)
     .slice(0, 3)
-    .map((item) => `${item.key} (${getDimensionLabel(item.value)})`);
+    .map((item) => `${DIM_LABELS[item.key] ?? item.key} (${getDimensionLabel(item.value)})`);
 
-  const result: ProfileResult = {
-    dims,
+  const result: ArchetypeDerivation = {
     arquetipo: arquetipo.name,
     arquetipoDescripcion: arquetipo.description,
     dimensionesDominantes,
-    formato: inputs.formato,
-    trabajo: inputs.trabajo,
-    intereses: inputs.intereses,
   };
 
   if (second && best.score - second.score < 0.12) {
@@ -138,6 +155,19 @@ function computeProfile(inputs: ProfileInputs): ProfileResult {
   }
 
   return result;
+}
+
+function computeProfile(inputs: ProfileInputs): ProfileResult {
+  const dims = computeDimensions(inputs);
+  const derived = deriveArchetype(dims);
+
+  return {
+    dims,
+    ...derived,
+    formato: inputs.formato,
+    trabajo: inputs.trabajo,
+    intereses: inputs.intereses,
+  };
 }
 
 router.post('/', requireAuth, async (req, res) => {
@@ -180,10 +210,13 @@ router.get('/me', requireAuth, async (req, res) => {
     return res.json({ profile: null });
   }
 
+  const dims = JSON.parse(profile.dims) as ProfileDimensions;
+  const derived = deriveArchetype(dims);
+
   return res.json({
     profile: {
-      dims: JSON.parse(profile.dims),
-      arquetipo: profile.arquetipo,
+      dims,
+      ...derived,
       formato: JSON.parse(profile.formato),
       trabajo: profile.trabajo,
       intereses: profile.intereses,
