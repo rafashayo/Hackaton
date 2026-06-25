@@ -12,6 +12,9 @@ function friendlyAiError(error: unknown, fallback: string): string {
     if (/429|quota|Too Many/i.test(error.message)) {
       return 'La IA llegó al límite gratuito por ahora. Probá de nuevo en un rato.';
     }
+    if (/503|overload|unavailable|high demand/i.test(error.message)) {
+      return 'La IA está saturada en este momento. Probá de nuevo en unos segundos.';
+    }
     if (/no configurada/i.test(error.message)) {
       return 'La IA no está configurada en el servidor (falta GEMINI_API_KEY).';
     }

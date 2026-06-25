@@ -22,8 +22,9 @@ async function generateWithFallback(call: (modelName: string) => Promise<string>
       return await call(modelName);
     } catch (error) {
       lastError = error;
-      const isQuota = error instanceof Error && /429|quota|Too Many/i.test(error.message);
-      if (!isQuota) throw error; // errores que no son de cuota no tiene sentido reintentarlos
+      const isRetryable =
+        error instanceof Error && /429|quota|Too Many|503|overload|unavailable|high demand/i.test(error.message);
+      if (!isRetryable) throw error; // solo reintentamos errores transitorios (cuota o sobrecarga del modelo)
     }
   }
   throw lastError;
